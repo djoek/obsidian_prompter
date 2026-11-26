@@ -1,0 +1,153 @@
+/* Teleprompter. Every value comes from --tp-* custom properties, set by the
+   engine from the plugin settings. Inside the content we style plain
+   semantic elements; only the containers carry a class. */
+
+.workspace-leaf-content[data-type="teleprompter"] > .view-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.tp-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--tp-bg);
+  color: var(--tp-fg);
+  cursor: none;
+  user-select: none;
+}
+
+.tp-stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+
+.tp-rotor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  overflow: hidden;
+}
+
+.tp-content {
+  position: relative;
+  width: var(--tp-width);
+  margin: 0 auto;
+  padding-bottom: 100vh;
+  font-family: var(--tp-font);
+  font-size: var(--tp-size);
+  line-height: var(--tp-line);
+  text-align: var(--tp-align);
+  will-change: transform;
+
+  & :is(h1, h2, h3, h4, h5, h6, p, li, blockquote) {
+    margin: 0 0 0.6em;
+    transition: opacity 0.4s;
+  }
+
+  & :is(h1, h2, h3, h4, h5, h6) {
+    color: var(--tp-heading);
+    font-size: 1em;
+    font-weight: 700;
+  }
+
+  & h1 { font-size: 1.25em; }
+  & h2 { font-size: 1.1em; }
+
+  & :is(ul, ol) {
+    margin: 0;
+    padding-left: 1.2em;
+  }
+
+  & blockquote {
+    padding-left: 0.6em;
+    border-left: 0.12em solid var(--tp-heading);
+    font-style: italic;
+  }
+
+  & strong { font-weight: 800; }
+
+  & mark {
+    background: var(--tp-mark);
+    color: var(--tp-bg);
+    padding: 0 0.1em;
+    border-radius: 0.1em;
+  }
+
+  & s { opacity: 0.45; }
+
+  & hr {
+    border: none;
+    border-top: 0.08em dashed var(--tp-heading);
+    margin: 1.5em 0 0.4em;
+    opacity: 0.6;
+  }
+
+  & section::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.4em;
+    font-size: 0.4em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+}
+
+.tp-stage[data-dim-read] .tp-content [data-read] {
+  opacity: 0.3;
+}
+
+.tp-eyeline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--tp-eye-pos);
+  pointer-events: none;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    top: calc(var(--tp-size) * -0.35);
+    border: calc(var(--tp-size) * 0.35) solid transparent;
+  }
+  &::before { left: 0; border-left-color: var(--tp-eye); }
+  &::after { right: 0; border-right-color: var(--tp-eye); }
+}
+
+.tp-hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.4em 1em;
+  font: 600 14px/1.4 system-ui, sans-serif;
+  color: var(--tp-fg);
+  background: color-mix(in srgb, var(--tp-bg) 80%, transparent);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-toast {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  padding: 0.3em 0.8em;
+  font: 700 24px/1.4 system-ui, sans-serif;
+  color: var(--tp-bg);
+  background: var(--tp-fg);
+  border-radius: 0.3em;
+  opacity: 0;
+  transition: opacity 0.3s;
+
+  &[data-show] { opacity: 0.9; }
+}
+
+[hidden].tp-eyeline,
+[hidden].tp-hud {
+  display: none;
+}
