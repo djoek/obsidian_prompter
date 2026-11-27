@@ -91,7 +91,10 @@ line down or up, and reset voice matching. Press **Learn**, then the pedal:
 - **MIDI:** Note On, Control Change (a sustain pedal, CC 64, counts once per
   press) or Program Change. Works whichever window is active.
 
-An action can have several inputs; the × removes one. MIDI is only opened
+**MIDI device** and **MIDI channel** limit which messages count, for when a
+keyboard or pad controller is connected too: choose a device after **Find
+devices**, and a channel 1–16 (or all). A device that's unplugged stays
+selected. An action can have several inputs; the × removes one. MIDI is only opened
 while learning or when a MIDI input is in use, so without MIDI there's no
 permission prompt.
 

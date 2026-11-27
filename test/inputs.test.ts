@@ -106,3 +106,54 @@ describe("Midi (with a fake device)", () => {
     }
   });
 });
+
+
+describe("Midi device choice", () => {
+  test("only the chosen device is heard; switching back to all works", async () => {
+    const { Midi } = await import("../src/inputs");
+    type Port = { name: string; onmidimessage: ((e: { data: Uint8Array }) => void) | null };
+    const inputs = new Map<string, Port>([
+      ["a", { name: "Keyboard", onmidimessage: null }],
+      ["b", { name: "Foot switch", onmidimessage: null }],
+    ]);
+    const nav = globalThis.navigator as unknown as { requestMIDIAccess?: () => Promise<unknown> };
+    const before = nav.requestMIDIAccess;
+    nav.requestMIDIAccess = async () => ({ inputs, onstatechange: null });
+    try {
+      const midi = new Midi();
+      const heard: string[] = [];
+      midi.on((id) => heard.push(id));
+      midi.setDevice("Foot switch"); // chosen before MIDI is open: kept
+      await midi.start();
+      expect(inputs.get("a")!.onmidimessage).toBeNull();
+      inputs.get("b")!.onmidimessage!({ data: new Uint8Array([0xb0, 64, 127]) });
+      expect(heard).toEqual(["midi:cc:64"]);
+      expect(midi.devices()).toEqual(["Keyboard", "Foot switch"]); // the list shows all
+
+      midi.setDevice("");
+      inputs.get("a")!.onmidimessage!({ data: new Uint8Array([0x90, 60, 80]) });
+      expect(heard).toEqual(["midi:cc:64", "midi:note:60"]);
+      midi.stop();
+    } finally {
+      nav.requestMIDIAccess = before;
+    }
+  });
+});
+
+
+describe("MIDI channel choice", () => {
+  test("only the chosen channel counts; 0 means all", () => {
+    const cc = new Map<number, number>();
+    expect(midiInput([0x90, 60, 100], cc, 1)).toBe("midi:note:60"); // status 0x90 = channel 1
+    expect(midiInput([0x91, 60, 100], cc, 1)).toBeNull(); // channel 2
+    expect(midiInput([0x9f, 60, 100], cc, 16)).toBe("midi:note:60");
+    expect(midiInput([0x95, 60, 100], cc, 0)).toBe("midi:note:60");
+  });
+
+  test("the same pedal on two channels doesn't interfere", () => {
+    const cc = new Map<number, number>();
+    expect(midiInput([0xb0, 64, 127], cc)).toBe("midi:cc:64"); // ch 1 down
+    expect(midiInput([0xb1, 64, 127], cc)).toBe("midi:cc:64"); // ch 2 down: its own press
+    expect(midiInput([0xb0, 64, 0], cc)).toBeNull();
+  });
+});

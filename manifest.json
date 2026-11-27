@@ -1,7 +1,7 @@
 {
   "id": "souffleur",
   "name": "Souffleur",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "minAppVersion": "1.5.0",
   "description": "A prompter teleprompter that follows your voice. Use Markdown features to control the scroll. Innovative readability features because inclusion matters.",
   "author": "Kris",

@@ -3,7 +3,7 @@
 // An input is a string id:
 //   "key:KeyB"        a keyboard key (pedals and clickers act as keyboards),
 //                     by KeyboardEvent.code, so it doesn't depend on layout
-//   "midi:note:64"    MIDI Note On, any channel
+//   "midi:note:64"    MIDI Note On (the channel is filtered separately)
 //   "midi:cc:64"      MIDI Control Change, counted when it rises past 64
 //   "midi:pc:3"       MIDI Program Change
 //
@@ -60,20 +60,28 @@ export function keyInput(e: KeyboardEvent): string | null {
 
 /**
  * Turn a raw MIDI message into an input id when it is a "press", else null.
- * `cc` remembers the last value per controller, to see a CC rise past 64
- * once (a sustain pedal sends one message down and one up).
+ * `cc` remembers the last value per channel and controller, to see a CC rise
+ * past 64 once (a sustain pedal sends one message down and one up).
+ * `channel` 1–16 only accepts that channel; 0 accepts all.
  */
-export function midiInput(data: ArrayLike<number>, cc: Map<number, number>): string | null {
+export function midiInput(
+  data: ArrayLike<number>,
+  cc: Map<number, number>,
+  channel = 0,
+): string | null {
   const status = data[0] ?? 0;
   const kind = status & 0xf0;
+  const ch = (status & 0x0f) + 1; // channels are numbered 1–16 on devices
+  if (channel && ch !== channel) return null;
   const a = data[1] ?? 0;
   const b = data[2] ?? 0;
   switch (kind) {
     case 0x90: // Note On; velocity 0 means Note Off
       return b > 0 ? `midi:note:${a}` : null;
     case 0xb0: {
-      const before = cc.get(a) ?? 0;
-      cc.set(a, b);
+      const key = ch * 128 + a;
+      const before = cc.get(key) ?? 0;
+      cc.set(key, b);
       return before < 64 && b >= 64 ? `midi:cc:${a}` : null;
     }
     case 0xc0:
@@ -112,6 +120,10 @@ export function actionsFor(bindings: Binding[], input: string): Action[] {
  */
 export class Midi {
   private access: MIDIAccess | null = null;
+  /** Only this device triggers anything; "" = every device. */
+  private device = "";
+  /** Only this channel (1–16); 0 = every channel. */
+  private channel = 0;
   private cc = new Map<number, number>();
   private listeners = new Set<(input: string) => void>();
   error = "";
@@ -145,6 +157,17 @@ export class Midi {
     return this.access !== null;
   }
 
+  /** Listen to one device by name, or "" for all. */
+  setDevice(name: string): void {
+    this.device = name;
+    this.attachAll();
+  }
+
+  /** Listen to one channel (1–16), or 0 for all. */
+  setChannel(channel: number): void {
+    this.channel = channel;
+  }
+
   /** Names of the connected MIDI inputs. */
   devices(): string[] {
     return this.access ? [...this.access.inputs.values()].map((i) => i.name ?? "MIDI input") : [];
@@ -157,9 +180,13 @@ export class Midi {
 
   private attachAll(): void {
     for (const input of this.access?.inputs.values() ?? []) {
+      if (this.device && input.name !== this.device) {
+        input.onmidimessage = null;
+        continue;
+      }
       input.onmidimessage = (e) => {
         if (!e.data) return;
-        const id = midiInput(e.data, this.cc);
+        const id = midiInput(e.data, this.cc, this.channel);
         if (id) this.listeners.forEach((fn) => fn(id));
       };
     }

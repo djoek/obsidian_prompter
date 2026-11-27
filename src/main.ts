@@ -39,6 +39,8 @@ export default class SouffleurPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...migrateSettings(await this.loadSettingsData()) };
     this.settings.bindings = cleanBindings(this.settings.bindings);
+    this.midi.setDevice(this.settings.midiDevice);
+    this.midi.setChannel(this.settings.midiChannel);
     this.registerView(VIEW_TYPE, (leaf) => new PrompterView(leaf, this));
     this.registerView(SECTIONS_VIEW, (leaf) => new SectionsView(leaf, this));
     this.addSettingTab(new SouffleurSettingTab(this.app, this));
@@ -379,6 +381,7 @@ class SouffleurSettingTab extends PluginSettingTab {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.stopLearning?.();
+    void this.plugin.syncMidi(); // close MIDI if it was only opened to list devices
   }
 
   /** Pedals, clickers and MIDI: one row per action, with Learn and remove. */
@@ -404,6 +407,46 @@ class SouffleurSettingTab extends PluginSettingTab {
       );
     };
     showMidi();
+
+    // Which MIDI device to listen to. The list needs MIDI to be open, which
+    // may ask for permission, so it's opened on request.
+    const connected = plugin.midi.devices();
+    const chosen = plugin.settings.midiDevice;
+    new Setting(containerEl)
+      .setName("MIDI device")
+      .setDesc(
+        plugin.midi.running
+          ? "Only this device triggers actions and is listened to when learning."
+          : "Press Find devices to list your MIDI devices.",
+      )
+      .addDropdown((d) => {
+        d.addOption("", "All MIDI devices");
+        for (const name of connected) d.addOption(name, name);
+        if (chosen && !connected.includes(chosen)) d.addOption(chosen, `${chosen} (not connected)`);
+        d.setValue(chosen).onChange(async (name) => {
+          await plugin.updateSettings({ midiDevice: name }, false);
+          plugin.midi.setDevice(name);
+        });
+      })
+      .addButton((b) =>
+        b.setButtonText(plugin.midi.running ? "Refresh" : "Find devices").onClick(async () => {
+          await plugin.midi.start();
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("MIDI channel")
+      .setDesc("Only messages on this channel trigger actions and are learned.")
+      .addDropdown((d) => {
+        d.addOption("0", "All channels");
+        for (let ch = 1; ch <= 16; ch++) d.addOption(String(ch), `Channel ${ch}`);
+        d.setValue(String(plugin.settings.midiChannel)).onChange(async (v) => {
+          const channel = Number(v);
+          await plugin.updateSettings({ midiChannel: channel }, false);
+          plugin.midi.setChannel(channel);
+        });
+      });
 
     for (const action of ACTIONS) {
       const bound = plugin.settings.bindings.filter((b) => b.action === action.id);

@@ -65,6 +65,8 @@ export interface PrompterSettings {
 
   // Pedals, clickers, MIDI: learned inputs and what they do
   bindings: Binding[];
+  midiDevice: string; // "" = all MIDI devices
+  midiChannel: number; // 1–16, or 0 = all channels
 }
 
 export const VOICE_COMMAND =
@@ -123,6 +125,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   voiceCommand: VOICE_COMMAND,
 
   bindings: [],
+  midiDevice: "",
+  midiChannel: 0,
 };
 
 // ── Migration from the plugin's earlier name ──────────────────────────────
