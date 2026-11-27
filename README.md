@@ -79,6 +79,22 @@ If the text doesn't scroll in macOS full screen (the green button), press **D**:
 fallback timer. The prompter keeps moving either way; if both counts move but
 the text doesn't, please report what the overlay says.
 
+## Pedals, clickers and MIDI
+
+*Settings → Pedals, clickers and MIDI* lists the actions you can give your own
+input: play/pause, next section, previous section (retake), faster, slower, one
+line down or up, and reset voice matching. Press **Learn**, then the pedal:
+
+- **A key:** foot pedals and presentation clickers act as keyboards. Works
+  while the prompter window is active, and replaces that key's built-in action
+  (so a clicker's PageDown can mean "next section").
+- **MIDI:** Note On, Control Change (a sustain pedal, CC 64, counts once per
+  press) or Program Change. Works whichever window is active.
+
+An action can have several inputs; the × removes one. MIDI is only opened
+while learning or when a MIDI input is in use, so without MIDI there's no
+permission prompt.
+
 ## Per-note settings (frontmatter)
 
 A note can override any setting in its frontmatter. All of it is optional.

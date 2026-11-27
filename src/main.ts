@@ -12,11 +12,22 @@ import {
 import { SECTIONS_VIEW, SectionsView } from "./sections";
 import { PrompterView, VIEW_TYPE } from "./view";
 import { firstFamily, fontStack, installedFonts } from "./fonts";
+import {
+  ACTIONS,
+  type Action,
+  actionsFor,
+  cleanBindings,
+  describeInput,
+  keyInput,
+  Midi,
+} from "./inputs";
 import { VoiceClient, type VoiceState } from "./voice";
 
 export default class SouffleurPlugin extends Plugin {
   settings: PrompterSettings = { ...DEFAULT_SETTINGS };
   voice: VoiceClient | null = null;
+  midi = new Midi();
+  private stopMidiListener: (() => void) | null = null;
   private proc: ChildProcess | null = null;
   /** Device name, or the error text when the state is "error". */
   voiceDetail = "";
@@ -27,6 +38,7 @@ export default class SouffleurPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...migrateSettings(await this.loadSettingsData()) };
+    this.settings.bindings = cleanBindings(this.settings.bindings);
     this.registerView(VIEW_TYPE, (leaf) => new PrompterView(leaf, this));
     this.registerView(SECTIONS_VIEW, (leaf) => new SectionsView(leaf, this));
     this.addSettingTab(new SouffleurSettingTab(this.app, this));
@@ -81,7 +93,10 @@ export default class SouffleurPlugin extends Plugin {
       },
     });
 
-    this.app.workspace.onLayoutReady(() => this.applyVoice());
+    this.app.workspace.onLayoutReady(() => {
+      this.applyVoice();
+      void this.syncMidi();
+    });
   }
 
   /**
@@ -111,6 +126,8 @@ export default class SouffleurPlugin extends Plugin {
 
   onunload(): void {
     this.stopVoice();
+    this.stopMidiListener?.();
+    this.midi.stop();
   }
 
   // ── Voice tracking ─────────────────────────────────────────────────────
@@ -130,6 +147,65 @@ export default class SouffleurPlugin extends Plugin {
     if (!this.voice) return;
     this.voice.reset();
     this.views().forEach((v) => v.prompter?.toast("Voice matching reset"));
+  }
+
+  // ── Pedals, clickers, MIDI ─────────────────────────────────────────────
+
+  /** Run an action on one prompter, or all open ones. */
+  runAction(action: Action, only?: PrompterView): void {
+    if (action === "resetVoice") return this.resetVoice();
+    for (const v of only ? [only] : this.views()) {
+      const p = v.prompter;
+      if (!p) continue;
+      switch (action) {
+        case "toggle":
+          p.toggle();
+          break;
+        case "next":
+          p.nextSection();
+          break;
+        case "prev":
+          p.prevSection();
+          break;
+        case "faster":
+          p.adjustWpm(10);
+          break;
+        case "slower":
+          p.adjustWpm(-10);
+          break;
+        case "lineDown":
+          p.lines(1);
+          break;
+        case "lineUp":
+          p.lines(-1);
+          break;
+      }
+    }
+  }
+
+  /** A key pressed in a prompter window: true if it was a learned input. */
+  handleLearnedKey(e: KeyboardEvent, view: PrompterView): boolean {
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    const input = keyInput(e);
+    const actions = input ? actionsFor(this.settings.bindings, input) : [];
+    actions.forEach((a) => this.runAction(a, view));
+    return actions.length > 0;
+  }
+
+  /** Listen to MIDI only while some binding uses it (no prompt otherwise). */
+  async syncMidi(): Promise<void> {
+    const wanted = this.settings.bindings.some((b) => b.input.startsWith("midi:"));
+    if (wanted && !this.stopMidiListener) {
+      if (!(await this.midi.start())) return;
+      this.stopMidiListener = this.midi.on((input) =>
+        actionsFor(this.settings.bindings, input).forEach((a) => this.runAction(a)),
+      );
+    } else if (!wanted) {
+      // Also closes MIDI that was opened only for learning.
+      this.stopMidiListener?.();
+      this.stopMidiListener = null;
+      this.midi.stop();
+    }
   }
 
   /** (Re)start the voice process and client to match the settings. */
@@ -297,10 +373,111 @@ export function formatProgress(done: number, total: number): string {
 
 class SouffleurSettingTab extends PluginSettingTab {
   private unsubscribe: (() => void) | null = null;
+  private stopLearning: (() => void) | null = null;
 
   hide(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.stopLearning?.();
+  }
+
+  /** Pedals, clickers and MIDI: one row per action, with Learn and remove. */
+  private displayInputs(containerEl: HTMLElement): void {
+    const plugin = this.plugin;
+    new Setting(containerEl).setName("Pedals, clickers and MIDI").setHeading();
+    containerEl.createEl("p", {
+      text:
+        "Press Learn, then the pedal, clicker key or MIDI button. Keys work while the " +
+        "prompter window is active; MIDI works whichever window is active. A learned key " +
+        "replaces that key's built-in action in the prompter.",
+    });
+    const midiState = containerEl.createEl("p", { cls: "setting-item-description" });
+    const showMidi = () => {
+      const devices = plugin.midi.devices();
+      midiState.setText(
+        plugin.midi.error ||
+          (plugin.midi.running
+            ? devices.length
+              ? `MIDI inputs: ${devices.join(", ")}`
+              : "MIDI is on, but no MIDI device is connected."
+            : "MIDI is off until you learn a MIDI input."),
+      );
+    };
+    showMidi();
+
+    for (const action of ACTIONS) {
+      const bound = plugin.settings.bindings.filter((b) => b.action === action.id);
+      const row = new Setting(containerEl)
+        .setName(action.name)
+        .setDesc(bound.length ? bound.map((b) => describeInput(b.input)).join(" · ") : "Not set");
+      for (const b of bound) {
+        row.addExtraButton((x) =>
+          x
+            .setIcon("x")
+            .setTooltip(`Remove ${describeInput(b.input)}`)
+            .onClick(async () => {
+              await plugin.updateSettings(
+                { bindings: plugin.settings.bindings.filter((o) => o !== b) },
+                false,
+              );
+              await plugin.syncMidi();
+              this.display();
+            }),
+        );
+      }
+      row.addButton((btn) =>
+        btn.setButtonText("Learn").onClick(() => {
+          this.stopLearning?.();
+          btn.setButtonText("Press a key or pedal… (Esc cancels)").setCta();
+          void this.learn(action.id, () => {
+            btn.setButtonText("Learn").removeCta();
+            showMidi();
+          });
+        }),
+      );
+    }
+  }
+
+  /** Wait for one key or MIDI press, then bind it to `action`. */
+  private async learn(action: Action, done: () => void): Promise<void> {
+    const plugin = this.plugin;
+    const win = this.containerEl.win;
+    const finish = async (input: string | null) => {
+      cleanup();
+      done();
+      if (input && !plugin.settings.bindings.some((b) => b.action === action && b.input === input)) {
+        await plugin.updateSettings(
+          { bindings: [...plugin.settings.bindings, { action, input }] },
+          false,
+        );
+        new Notice(`${describeInput(input)} → ${ACTIONS.find((a) => a.id === action)?.name}`);
+      }
+      await plugin.syncMidi();
+      if (input) this.display();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") return void finish(null);
+      const input = keyInput(e);
+      if (input) void finish(input);
+    };
+    win.addEventListener("keydown", onKey, { capture: true });
+    // MIDI is opened for learning too; it closes again if nothing uses it.
+    const midiOn = await plugin.midi.start();
+    const stopMidi = midiOn ? plugin.midi.on((input) => void finish(input)) : () => {};
+    const timer = win.setTimeout(() => void finish(null), 20_000);
+    const cleanup = () => {
+      win.removeEventListener("keydown", onKey, { capture: true });
+      stopMidi();
+      win.clearTimeout(timer);
+      this.stopLearning = null;
+    };
+    this.stopLearning = () => {
+      cleanup();
+      done();
+      void plugin.syncMidi();
+    };
   }
 
   constructor(
@@ -621,6 +798,8 @@ class SouffleurSettingTab extends PluginSettingTab {
           window.setTimeout(() => this.display(), 1500);
         }),
       );
+
+    this.displayInputs(containerEl);
 
     new Setting(containerEl).setName("Keys in the prompter").setHeading();
     containerEl.createEl("p", {

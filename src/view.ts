@@ -86,7 +86,11 @@ export class PrompterView extends ItemView {
         if (this.app.workspace.getActiveViewOfType(PrompterView) !== this) return;
         const t = e.target as HTMLElement | null;
         if (t?.isContentEditable || t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
-        if (this.prompter?.handleKey(e)) e.stopPropagation();
+        // Learned pedal/clicker keys first, so they can override built-in keys.
+        if (this.plugin.handleLearnedKey(e, this) || this.prompter?.handleKey(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
       },
       { capture: true },
     );

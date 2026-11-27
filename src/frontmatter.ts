@@ -16,6 +16,7 @@ const NOT_PER_NOTE = new Set<keyof PrompterSettings>([
   "voiceUrl",
   "voiceDevice",
   "voiceCommand",
+  "bindings",
 ]);
 
 /** Settings that only accept a few values. */

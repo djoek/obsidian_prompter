@@ -1,3 +1,5 @@
+import type { Binding } from "./inputs";
+
 export type Rotation = 0 | 90 | 180 | 270;
 export type MarginSide = "before" | "after" | "off";
 
@@ -60,6 +62,9 @@ export interface PrompterSettings {
   voiceUrl: string;
   voiceDevice: string; // "" = system default
   voiceCommand: string; // "" = start it yourself
+
+  // Pedals, clickers, MIDI: learned inputs and what they do
+  bindings: Binding[];
 }
 
 export const VOICE_COMMAND =
@@ -116,6 +121,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   voiceUrl: VOICE_URL,
   voiceDevice: "",
   voiceCommand: VOICE_COMMAND,
+
+  bindings: [],
 };
 
 // ── Migration from the plugin's earlier name ──────────────────────────────

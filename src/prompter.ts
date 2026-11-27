@@ -719,6 +719,11 @@ export class Prompter {
     this.goToSection(Math.max(0, target));
   }
 
+  /** One line forward (n = 1) or back (n = -1). */
+  lines(n: number): void {
+    this.nudge(n * this.lineHeightPx());
+  }
+
   nudge(px: number): void {
     const from = this.tween?.to ?? this.pos;
     const to = Math.max(0, Math.min(this.total, from + px));
