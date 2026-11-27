@@ -1,9 +1,21 @@
-import { MarkdownView, Plugin, PluginSettingTab, Setting, type App } from "obsidian";
-import { DEFAULT_SETTINGS, type PrompterSettings, type Rotation } from "./settings";
+import { spawn, type ChildProcess } from "child_process";
+import { MarkdownView, Notice, Plugin, PluginSettingTab, Setting, type App } from "obsidian";
+import {
+  DEFAULT_SETTINGS,
+  VOICE_COMMAND,
+  type PrompterSettings,
+  type Rotation,
+} from "./settings";
 import { PrompterView, VIEW_TYPE } from "./view";
+import { VoiceClient, type VoiceState } from "./voice";
 
 export default class TeleprompterPlugin extends Plugin {
   settings: PrompterSettings = { ...DEFAULT_SETTINGS };
+  voice: VoiceClient | null = null;
+  private proc: ChildProcess | null = null;
+  private voiceDetail = "";
+  private level = 0;
+  private heard = "";
 
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...(await this.loadData()) };
@@ -39,6 +51,123 @@ export default class TeleprompterPlugin extends Plugin {
     control("prev-section", "Previous section / restart section", (v) => v.prompter?.prevSection());
     control("faster", "Faster", (v) => v.prompter?.adjustWpm(10));
     control("slower", "Slower", (v) => v.prompter?.adjustWpm(-10));
+
+    this.addCommand({
+      id: "toggle-voice",
+      name: "Toggle voice tracking",
+      callback: async () => {
+        await this.updateSettings({ voiceEnabled: !this.settings.voiceEnabled }, false);
+        this.applyVoice();
+        new Notice(`Voice tracking ${this.settings.voiceEnabled ? "on" : "off"}`);
+      },
+    });
+
+    this.app.workspace.onLayoutReady(() => this.applyVoice());
+  }
+
+  onunload(): void {
+    this.stopVoice();
+  }
+
+  // ── Voice tracking ─────────────────────────────────────────────────────
+
+  /** (Re)start the voice process and client to match the settings. */
+  applyVoice(): void {
+    this.stopVoice();
+    if (!this.settings.voiceEnabled) {
+      this.views().forEach((v) => this.syncVoice(v));
+      return;
+    }
+    if (this.settings.voiceCommand.trim()) this.startProcess(this.settings.voiceCommand);
+    this.voice = new VoiceClient(this.settings.voiceUrl, {
+      onConnect: () => {
+        if (this.settings.voiceDevice) this.voice?.setDevice(this.settings.voiceDevice);
+        this.views().forEach((v) => v.prompter?.announce());
+      },
+      onState: (state, detail) => {
+        this.voiceDetail = detail;
+        this.views().forEach((v) => this.syncVoice(v));
+        if (state === "error") new Notice(`Voice tracking: ${detail}`);
+      },
+      onPosition: (word) => this.views().forEach((v) => v.prompter?.followWord(word)),
+      onHeard: (text) => {
+        this.heard = text;
+        this.refreshInfo();
+      },
+      onLevel: (rms) => {
+        this.level = rms;
+        this.refreshInfo();
+      },
+    });
+    this.views().forEach((v) => this.syncVoice(v));
+  }
+
+  private stopVoice(): void {
+    this.voice?.close();
+    this.voice = null;
+    if (this.proc?.pid) {
+      // Negative pid = the whole process group: the shell, uv and Python.
+      try {
+        process.kill(-this.proc.pid, "SIGTERM");
+      } catch {
+        /* already gone */
+      }
+    }
+    this.proc = null;
+  }
+
+  private startProcess(command: string): void {
+    const home = process.env.HOME ?? "";
+    // Apps started from the Dock get a minimal PATH; add the usual uv homes.
+    const PATH = [process.env.PATH, `${home}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin"]
+      .filter(Boolean)
+      .join(":");
+    const proc = spawn(command, { shell: true, detached: true, env: { ...process.env, PATH } });
+    this.proc = proc;
+    let tail = "";
+    const log = (chunk: Buffer) => {
+      const text = chunk.toString();
+      tail = (tail + text).slice(-500);
+      console.log(`[teleprompter voice] ${text.trimEnd()}`);
+    };
+    proc.stdout?.on("data", log);
+    proc.stderr?.on("data", log);
+    proc.on("exit", (code) => {
+      if (this.proc === proc && code) {
+        new Notice(`Voice process stopped (exit ${code}). See the developer console.\n${tail}`);
+      }
+    });
+  }
+
+  /** Give a prompter the current voice state. */
+  syncVoice(view: PrompterView): void {
+    view.prompter?.setVoice(this.voice?.ready ?? false);
+    view.prompter?.setVoiceInfo(this.voiceLabel());
+  }
+
+  private refreshInfo(): void {
+    const label = this.voiceLabel();
+    this.views().forEach((v) => v.prompter?.setVoiceInfo(label));
+  }
+
+  private voiceLabel(): string {
+    if (!this.voice) return "";
+    const state: VoiceState = this.voice.state;
+    switch (state) {
+      case "offline":
+        return "🎙 waiting for voice process…";
+      case "loading":
+        return "🎙 loading model…";
+      case "error":
+        return `🎙 error: ${this.voiceDetail}`;
+      case "ready": {
+        // RMS → decibels → 0..5 bars (-60 dB silent, 0 dB loudest).
+        const db = 20 * Math.log10(Math.max(this.level, 1e-6));
+        const bars = Math.round(Math.max(0, Math.min(5, (db + 60) / 12)));
+        const heard = this.heard.split(" ").slice(-5).join(" ");
+        return `🎙 ${"▮".repeat(bars)}${"▯".repeat(5 - bars)} ${heard}`;
+      }
+    }
   }
 
   private openCommand(checking: boolean, atCursor: boolean): boolean {
@@ -177,6 +306,72 @@ class TeleprompterSettingTab extends PluginSettingTab {
       "stopAtSection",
       "At a --- line, jump to the next section's start and pause. Press Space to go on.",
     );
+
+    new Setting(containerEl).setName("Voice tracking").setHeading();
+    containerEl.createEl("p", {
+      text:
+        "A small local process listens to your microphone, recognises speech with " +
+        "Parakeet v3, and moves the prompter to the word you are saying. Needs uv " +
+        "and an Apple Silicon Mac. While on, Space pauses/resumes following.",
+    });
+    new Setting(containerEl)
+      .setName("Enable voice tracking")
+      .setDesc(`Status: ${this.plugin.voice?.state ?? "off"}`)
+      .addToggle((t) =>
+        t.setValue(s.voiceEnabled).onChange(async (v) => {
+          await this.plugin.updateSettings({ voiceEnabled: v }, false);
+          this.plugin.applyVoice();
+          window.setTimeout(() => this.display(), 1500);
+        }),
+      );
+    const mic = new Setting(containerEl)
+      .setName("Microphone")
+      .setDesc("The list comes from the voice process, so it must be running.");
+    mic.addDropdown((d) => {
+      d.addOption("", "System default");
+      if (s.voiceDevice) d.addOption(s.voiceDevice, s.voiceDevice);
+      d.setValue(s.voiceDevice);
+      d.onChange(async (name) => {
+        await this.plugin.updateSettings({ voiceDevice: name }, false);
+        this.plugin.voice?.setDevice(name);
+      });
+      void this.plugin.voice?.devices().then((list) => {
+        for (const dev of list) {
+          if (dev.name !== s.voiceDevice) {
+            d.addOption(dev.name, dev.name + (dev.default ? " (default)" : ""));
+          }
+        }
+      });
+    });
+    new Setting(containerEl)
+      .setName("Start command")
+      .setDesc(
+        "Run when voice tracking turns on, stopped when it turns off. Empty: start " +
+          "`prompter-voice serve` yourself, for example in a terminal to see its log.",
+      )
+      .addTextArea((t) => {
+        t.inputEl.rows = 3;
+        t.inputEl.style.width = "100%";
+        t.setPlaceholder(VOICE_COMMAND)
+          .setValue(s.voiceCommand)
+          .onChange((v) => void this.plugin.updateSettings({ voiceCommand: v }, false));
+      });
+    new Setting(containerEl)
+      .setName("Server address")
+      .addText((t) =>
+        t
+          .setValue(s.voiceUrl)
+          .onChange((v) => void this.plugin.updateSettings({ voiceUrl: v }, false)),
+      );
+    new Setting(containerEl)
+      .setName("Restart voice tracking")
+      .setDesc("Apply a changed command or address.")
+      .addButton((b) =>
+        b.setButtonText("Restart").onClick(() => {
+          this.plugin.applyVoice();
+          window.setTimeout(() => this.display(), 1500);
+        }),
+      );
 
     new Setting(containerEl).setName("Keys in the prompter").setHeading();
     containerEl.createEl("p", {

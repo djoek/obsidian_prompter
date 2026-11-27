@@ -34,7 +34,16 @@ export interface PrompterSettings {
   rotation: Rotation;
   flipH: boolean;
   flipV: boolean;
+
+  // Voice tracking
+  voiceEnabled: boolean;
+  voiceUrl: string;
+  voiceDevice: string; // "" = system default
+  voiceCommand: string; // "" = start it yourself
 }
+
+export const VOICE_COMMAND =
+  'uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" prompter-voice serve';
 
 export const DEFAULT_SETTINGS: PrompterSettings = {
   fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
@@ -65,4 +74,9 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   rotation: 0,
   flipH: false,
   flipV: false,
+
+  voiceEnabled: false,
+  voiceUrl: "ws://127.0.0.1:8765",
+  voiceDevice: "",
+  voiceCommand: VOICE_COMMAND,
 };

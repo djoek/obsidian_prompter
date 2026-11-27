@@ -40,7 +40,10 @@ export class PrompterView extends ItemView {
     this.contentEl.empty();
     this.prompter = new Prompter(this.contentEl, this.plugin.settings, {
       onWpmChange: (wpm) => void this.plugin.updateSettings({ wpm }, false),
+      onScript: (words, word) => this.plugin.voice?.sendScript(words, word),
+      onSeek: (word) => this.plugin.voice?.seek(word),
     });
+    this.plugin.syncVoice(this);
 
     // Keys go to whichever window this view lives in (the popout).
     this.registerDomEvent(this.contentEl.win, "keydown", (e: KeyboardEvent) => {

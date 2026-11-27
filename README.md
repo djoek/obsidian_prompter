@@ -93,27 +93,36 @@ bun run typecheck
 
 ### Releasing
 
-1. Raise `version` in `manifest.json` (and `package.json`), commit, push.
-2. Tag that exact version, without a `v`, and push the tag:
-
-   ```bash
-   git tag 0.1.1 && git push origin 0.1.1
-   ```
-
-`.github/workflows/release.yml` then tests, builds and publishes a release with
-`main.js`, `manifest.json` and `styles.css`. It fails if the tag and the
-manifest version differ, because BRAT and Obsidian compare those.
+Raise `version` in `manifest.json` (and `package.json`) and push to `main`.
+`.github/workflows/release.yml` sees a version without a release, then tests,
+builds and publishes a release tagged with that version (no `v`, as Obsidian
+and BRAT expect), with `main.js`, `manifest.json` and `styles.css`.
 
 `src/parser.ts` (Markdown → blocks and sections) and `src/prompter.ts` (the
 scroll engine) don't import Obsidian, so they can be tested and tried outside
 of it. `src/view.ts` and `src/main.ts` are the Obsidian glue.
 
-## Planned: voice tracking
+## Voice tracking
 
-Every word is rendered as `<span data-w="n">`. The plan is a small local
-Python process that listens to a chosen microphone, transcribes with
-Parakeet TDT 0.6B v3 (via `parakeet-mlx` on Apple Silicon, Dutch supported),
-fuzzy-matches the recent words against the script just ahead of the current
-position, and sends the matched word index to the prompter over a WebSocket.
-The prompter then scrolls to and highlights that word instead of using a fixed
-speed.
+Instead of scrolling at a fixed speed, the prompter can follow your voice: it
+scrolls to the word you are saying, fades what you have said, and underlines
+the current word. Stop talking and it stops; start a retake with P and it
+picks you up there.
+
+It needs a small local process (in `voice/`), which uses Parakeet v3 for
+speech recognition on Apple Silicon. Nothing leaves your Mac.
+
+1. Install [uv](https://docs.astral.sh/uv/) if you don't have it.
+2. *Settings → Teleprompter → Voice tracking*: turn on **Enable voice tracking**.
+   The plugin starts the process with the **Start command** (it is filled in
+   for you). The first start downloads the model, about 1.2 GB, so give it a
+   few minutes; the status bar in the prompter says what it is doing.
+3. Allow microphone access when macOS asks.
+4. Choose your **Microphone**, and open the prompter.
+
+The status bar shows a level meter and the last words heard, so you can see
+that it works. **Space** pauses and resumes following. There is also a command,
+**Toggle voice tracking**, for a hotkey.
+
+How it works, how to tune it, and how to test it on your own recording:
+[voice/README.md](voice/README.md).

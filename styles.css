@@ -151,3 +151,12 @@
 [hidden].tp-hud {
   display: none;
 }
+
+/* Voice mode: words already said fade, the current word is underlined. */
+.tp-stage[data-voice] .tp-content {
+  & [data-said] { opacity: 0.45; }
+  & [data-now] {
+    text-decoration: underline var(--tp-eye) 0.08em;
+    text-underline-offset: 0.15em;
+  }
+}

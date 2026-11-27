@@ -1,10 +1,10 @@
 {
   "name": "obsidian-teleprompter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun build src/main.ts --outfile=main.js --format=cjs --target=browser --external=obsidian --external=electron",
+    "build": "bun build src/main.ts --outfile=main.js --format=cjs --target=browser --external=obsidian --external=electron --external=child_process",
     "watch": "bun run build --watch",
     "dev": "bun dev/index.html",
     "test": "bun test",
@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.5",
+    "@types/node": "^26.6.11",
     "obsidian": "^1.14.4",
     "typescript": "^7.0.2"
   }

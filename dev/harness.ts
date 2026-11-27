@@ -16,5 +16,5 @@ const settings: PrompterSettings = {
 const host = document.querySelector("main")!;
 const prompter = new Prompter(host, settings);
 prompter.setScript(parseScript(sample));
-addEventListener("keydown", (e) => prompter.handleKey(e));
+document.addEventListener("keydown", (e) => prompter.handleKey(e));
 Object.assign(globalThis, { prompter });

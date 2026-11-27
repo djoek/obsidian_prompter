@@ -1,11 +1,14 @@
-# Push a tag that equals the version in manifest.json (e.g. `0.1.1`, no "v")
-# and this builds main.js and publishes a GitHub release with the three files
-# Obsidian (and BRAT) need.
+# Publishes a release whenever manifest.json on main has a version that has
+# no release yet. To release: raise "version" in manifest.json and push.
+# The release is tagged with that version (no "v"), which is what Obsidian and
+# BRAT expect, and carries the three files a plugin install needs.
 name: Release
 
 on:
   push:
-    tags: ["*"]
+    branches: [main]
+    paths: [manifest.json]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,21 +18,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun test
-      - run: bun run typecheck
-      - run: bun run build
-      - name: Tag must match manifest.json version
-        run: |
-          version=$(jq -r .version manifest.json)
-          if [ "$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $version"
-            exit 1
-          fi
-      - name: Publish release
+
+      - name: Read version, skip if already released
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" main.js manifest.json styles.css \
-            --title "$GITHUB_REF_NAME" --generate-notes
+          version=$(jq -r .version manifest.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "$version" > /dev/null 2>&1; then
+            echo "Release $version exists; nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.version.outputs.exists != 'true'
+      - name: Test and build
+        if: steps.version.outputs.exists != 'true'
+        run: |
+          bun install --frozen-lockfile
+          bun test
+          bun run typecheck
+          bun run build
+
+      - name: Publish release
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$VERSION" main.js manifest.json styles.css \
+            --target "$GITHUB_SHA" --title "$VERSION" --generate-notes

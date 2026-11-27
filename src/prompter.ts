@@ -11,10 +11,16 @@ import type { PrompterSettings } from "./settings";
 export interface PrompterCallbacks {
   /** Called when the speed changes from the keyboard, so it can be saved. */
   onWpmChange?: (wpm: number) => void;
+  /** The words as numbered on screen, after every (re)render. */
+  onScript?: (words: string[], word: number) => void;
+  /** You jumped (N, P, Home, ...): `word` is the first word you'll say next. */
+  onSeek?: (word: number) => void;
 }
 
 const MIN_BLOCK_SECONDS = 0.4;
 const JUMP_MS = 450;
+/** Voice mode: seconds to close ~63% of the gap to the spoken word. */
+const FOLLOW_TAU = 0.35;
 
 interface Tween {
   from: number;
@@ -34,6 +40,9 @@ export class Prompter {
 
   private script: Script = { blocks: [], sections: [] };
   private els: HTMLElement[] = [];
+  private wordEls: HTMLElement[] = [];
+  /** Index of the first word in each block. */
+  private blockWord: number[] = [];
   private tops: number[] = [];
   private total = 0;
 
@@ -46,6 +55,14 @@ export class Prompter {
   private frame = 0;
   private toastTimer = 0;
   private resizeObserver: ResizeObserver;
+
+  // Voice mode: the voice process decides where we are.
+  private voice = false;
+  /** Scroll target: the word being spoken (-1 = none yet). */
+  private voiceWord = -1;
+  /** Highlight bookkeeping: words up to here carry data-said. */
+  private marked = -1;
+  private voiceInfo = "";
 
   constructor(
     host: HTMLElement,
@@ -92,13 +109,34 @@ export class Prompter {
       this.goToBlock(script.sections[0]?.firstBlock ?? 0, false);
     }
     this.current = this.blockAt(this.pos);
+    // A re-render made fresh spans: restore the marks on them.
+    if (this.voiceWord >= this.wordEls.length) this.voiceWord = -1;
+    const marked = Math.min(this.marked, this.wordEls.length - 1);
+    this.marked = -1;
+    this.highlight(marked, marked === this.voiceWord);
     this.updateRead();
     this.updateHud();
+    this.announce();
+  }
+
+  /** Tell listeners (the voice process) the words and where we are. */
+  announce(): void {
+    this.callbacks.onScript?.(this.words(), this.wordAtPos());
+  }
+
+  words(): string[] {
+    return this.wordEls.map((el) => el.textContent ?? "");
+  }
+
+  private wordAtPos(): number {
+    return this.blockWord[this.blockAt(this.pos)] ?? 0;
   }
 
   private render(): void {
     this.content.replaceChildren();
     this.els = [];
+    this.wordEls = [];
+    this.blockWord = [];
     this.wordIndex = 0;
     const total = this.script.sections.length;
     let sectionEl = this.el("section", "", this.content);
@@ -130,6 +168,7 @@ export class Prompter {
         default:
           el = this.el("p", "", sectionEl);
       }
+      this.blockWord.push(this.wordIndex);
       this.renderRuns(el, block.runs);
       this.els.push(el);
     }
@@ -157,6 +196,7 @@ export class Prompter {
           const span = this.el("span", "", target);
           span.dataset.w = String(this.wordIndex++);
           span.textContent = part;
+          this.wordEls.push(span);
         }
       }
     }
@@ -283,6 +323,8 @@ export class Prompter {
       const ease = 1 - (1 - t) ** 3;
       this.pos = this.tween.from + (this.tween.to - this.tween.from) * ease;
       if (t >= 1) this.tween = null;
+    } else if (this.voice) {
+      this.follow(dt);
     } else if (this.playing && now >= this.dwellUntil) {
       this.advance(dt, now);
     }
@@ -349,7 +391,7 @@ export class Prompter {
   // ── Controls ───────────────────────────────────────────────────────────
 
   play(): void {
-    if (this.pos >= this.total) return;
+    if (this.pos >= this.total && !this.voice) return;
     this.playing = true;
     this.dwellUntil = 0;
     this.updateHud();
@@ -368,8 +410,13 @@ export class Prompter {
   /** Jumping always pauses: you get a breath before the (re)take. */
   goToBlock(i: number, animate = true): void {
     const target = this.tops[i] ?? 0;
-    this.pause();
+    // In voice mode you just start talking again, so don't pause there.
+    if (!this.voice) this.pause();
     this.current = i;
+    const word = this.blockWord[i] ?? 0;
+    this.highlight(word - 1, false);
+    this.voiceWord = -1;
+    this.callbacks.onSeek?.(word);
     if (animate) {
       this.tween = { from: this.pos, to: target, start: this.win.performance.now() };
     } else {
@@ -489,6 +536,61 @@ export class Prompter {
     this.pos = Math.max(0, Math.min(this.total, this.pos + e.deltaY));
   };
 
+  // ── Voice mode ─────────────────────────────────────────────────────────
+
+  /** Voice tracking on/off. While on, Space pauses/resumes following. */
+  setVoice(active: boolean): void {
+    if (active === this.voice) return;
+    this.voice = active;
+    this.stage.toggleAttribute("data-voice", active);
+    if (active) this.play();
+    else {
+      this.pause();
+      this.highlight(-1, false);
+      this.voiceWord = -1;
+    }
+    this.updateHud();
+  }
+
+  /** The voice process says you're saying word `i`. */
+  followWord(i: number): void {
+    if (!this.voice || !this.playing || !this.wordEls[i]) return;
+    this.highlight(i, true);
+    this.voiceWord = i;
+  }
+
+  setVoiceInfo(text: string): void {
+    this.voiceInfo = text;
+    this.updateHud();
+  }
+
+  /**
+   * Ease towards the spoken word's line: each frame closes a fixed fraction
+   * of the gap (exponential smoothing), so small steps look calm and big
+   * corrections still arrive quickly. Measured every frame, so it stays right
+   * after a resize or rotation.
+   */
+  private follow(dt: number): void {
+    const el = this.wordEls[this.voiceWord];
+    if (!el || !this.playing) return;
+    const target = this.offsetIn(el);
+    this.pos += (target - this.pos) * (1 - Math.exp(-dt / FOLLOW_TAU));
+  }
+
+  /**
+   * Words up to `now` get data-said, later ones lose it. Only the range that
+   * changed is touched, so a step of a few words costs a few DOM writes.
+   */
+  private highlight(now: number, showNow: boolean): void {
+    const before = this.marked;
+    for (let w = Math.max(0, Math.min(now, before) + 1); w <= Math.max(now, before); w++) {
+      this.wordEls[w]?.toggleAttribute("data-said", w <= now);
+    }
+    this.stage.querySelector("[data-now]")?.removeAttribute("data-now");
+    if (showNow) this.wordEls[now]?.setAttribute("data-now", "");
+    this.marked = now;
+  }
+
   // ── Status display ─────────────────────────────────────────────────────
 
   private updateRead(): void {
@@ -500,7 +602,9 @@ export class Prompter {
     const total = this.script.sections.length;
     const title = this.script.sections[n]?.title ?? "";
     const state = this.playing ? "▶" : "❚❚";
-    this.hud.textContent = `${state}  ${this.settings.wpm} wpm  ·  ${n + 1}/${total}  ${title}`;
+    const mode = this.voice ? "🎙 voice" : `${this.settings.wpm} wpm`;
+    const info = this.voiceInfo ? `  ·  ${this.voiceInfo}` : "";
+    this.hud.textContent = `${state}  ${mode}  ·  ${n + 1}/${total}  ${title}${info}`;
   }
 
   private toast(text: string): void {
