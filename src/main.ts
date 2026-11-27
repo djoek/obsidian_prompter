@@ -713,6 +713,11 @@ class SouffleurSettingTab extends PluginSettingTab {
     slider("List item speed ×", "listSpeed", 0.25, 4, 0.05);
     slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
     slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
+    toggle(
+      "Read headings aloud",
+      "speakHeadings",
+      "Off: headings are labels. They show, but aren't highlighted, matched by voice or counted in the timing.",
+    );
     slider("Countdown before Play", "countdown", 0, 5, 1, "Seconds of 3-2-1 on screen. 0: start at once. Not used in voice mode.");
     slider("Smooth start", "smoothStart", 0, 3, 0.25, "Seconds to ease up to speed after Play. 0: full speed at once.");
     toggle("Keep the screen awake", "keepAwake", "While playing or listening, the display doesn't dim or sleep.");

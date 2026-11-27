@@ -24,6 +24,11 @@ def main() -> None:
     b = sub.add_parser("bench", help="run a WAV recording through the pipeline")
     b.add_argument("audio", type=Path, help="16-bit WAV of you reading the script")
     b.add_argument("script", type=Path, help="the script, as .md or .txt")
+    b.add_argument(
+        "--speak-headings",
+        action="store_true",
+        help="count headings as spoken (like the plugin's 'Read headings aloud')",
+    )
 
     for sp in (serve, b):
         sp.add_argument(
@@ -57,7 +62,7 @@ def main() -> None:
             from souffleur_voice.bench import bench, read_wav, script_words
 
             recognizer = make_recognizer(args.model, portable=args.portable)
-            words = script_words(args.script.read_text(encoding="utf-8"))
+            words = script_words(args.script.read_text(encoding="utf-8"), args.speak_headings)
             bench(recognizer, read_wav(args.audio), words)
         case _:
             from souffleur_voice.asr import make_recognizer

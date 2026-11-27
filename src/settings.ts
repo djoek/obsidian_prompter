@@ -44,6 +44,7 @@ export interface PrompterSettings {
   listSpeed: number;
   quoteSpeed: number;
   headingPause: number; // seconds
+  speakHeadings: boolean; // headings are read aloud (else they're labels)
   stopAtSection: boolean;
   countdown: number; // seconds of 3-2-1 before Play; 0 = none
   smoothStart: number; // seconds to ease up to speed after Play; 0 = instant
@@ -109,6 +110,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   listSpeed: 0.9,
   quoteSpeed: 1,
   headingPause: 1,
+  speakHeadings: false,
   stopAtSection: true,
   countdown: 3,
   smoothStart: 1,

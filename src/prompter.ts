@@ -243,7 +243,8 @@ export class Prompter {
           el = this.el("p", "", sectionEl);
       }
       this.blockWord.push(this.wordIndex);
-      this.renderRuns(el, block.runs, this.els.length);
+      const spoken = block.type !== "heading" || this.settings.speakHeadings;
+      this.renderRuns(el, block.runs, this.els.length, spoken);
       this.els.push(el);
     }
   }
@@ -255,7 +256,9 @@ export class Prompter {
 
   /** Words become <span data-w="n">: ready for voice-tracked highlighting. */
   private wordIndex = 0;
-  private renderRuns(parent: HTMLElement, runs: Run[], block: number): void {
+  /** `spoken` false: show the text, but not as words to say (no word spans,
+   * so no highlighting and no voice matching). */
+  private renderRuns(parent: HTMLElement, runs: Run[], block: number, spoken = true): void {
     for (const run of runs) {
       if (run.note !== undefined) {
         // An empty marker in the text; the note itself goes in the margin.
@@ -270,6 +273,10 @@ export class Prompter {
       if (run.italic) target = this.el("em", "", target);
       if (run.mark) target = this.el("mark", "", target);
       if (run.strike) target = this.el("s", "", target);
+      if (!spoken) {
+        target.append(run.text);
+        continue;
+      }
       for (const part of run.text.split(/(\s+)/)) {
         if (part === "") continue;
         if (/^\s+$/.test(part)) {
@@ -287,7 +294,9 @@ export class Prompter {
   // ── Layout ─────────────────────────────────────────────────────────────
 
   applySettings(s: PrompterSettings): void {
-    const restyle = this.settings.boldStarts !== s.boldStarts;
+    // Word numbering changes when headings start or stop being words.
+    const renumber = this.settings.speakHeadings !== s.speakHeadings;
+    const restyle = renumber || this.settings.boldStarts !== s.boldStarts;
     this.settings = s;
     const st = this.stage.style;
     st.setProperty("--sf-font", s.fontFamily);
@@ -312,7 +321,7 @@ export class Prompter {
     this.content.dataset.margin = this.notes.length ? s.marginNotes : "off";
     this.notesEl.hidden = s.marginNotes === "off";
     this.bandEl.hidden = s.focusBand <= 0;
-    if (restyle) this.rerender();
+    if (restyle) this.rerender(renumber);
     this.computeLengths();
     this.syncWake();
     this.layout();
@@ -358,11 +367,13 @@ export class Prompter {
     span.append(letters.slice(n).join(""));
   }
 
-  /** Render again in place (a setting changed how words look). */
-  private rerender(): void {
+  /** Render again in place (a setting changed how words look). With
+   * `renumber`, word numbers changed: clear the marks and tell the voice
+   * process the new word list. */
+  private rerender(renumber = false): void {
     const anchor = this.anchor();
-    const marked = this.marked;
-    const voiceWord = this.voiceWord;
+    const marked = renumber ? -1 : this.marked;
+    const voiceWord = renumber ? -1 : this.voiceWord;
     this.render();
     this.measure();
     if (anchor) this.pos = this.fromAnchor(anchor);
@@ -370,6 +381,7 @@ export class Prompter {
     this.highlight(marked, marked === voiceWord && voiceWord >= 0);
     this.voiceWord = voiceWord;
     this.updateRead();
+    if (renumber) this.announce();
   }
 
   private measure(): void {

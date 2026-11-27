@@ -10,8 +10,19 @@ export const MIN_BLOCK_SECONDS = 0.4;
 
 export type Pacing = Pick<
   PrompterSettings,
-  "wpm" | "headingSpeed" | "paragraphSpeed" | "listSpeed" | "quoteSpeed" | "headingPause"
+  | "wpm"
+  | "headingSpeed"
+  | "paragraphSpeed"
+  | "listSpeed"
+  | "quoteSpeed"
+  | "headingPause"
+  | "speakHeadings"
 >;
+
+/** Words you say in a block: headings are labels unless you read them aloud. */
+export function spokenWords(block: Block, p: Pacing): number {
+  return block.type === "heading" && !p.speakHeadings ? 0 : block.words;
+}
 
 /** The speed multiplier for a block's type. */
 export function speedFor(block: Block, p: Pacing): number {
@@ -30,7 +41,7 @@ export function speedFor(block: Block, p: Pacing): number {
 /** Seconds to say one block (separators take no time). */
 export function blockSeconds(block: Block, p: Pacing): number {
   if (block.type === "separator") return 0;
-  return Math.max(MIN_BLOCK_SECONDS, (block.words / (p.wpm * speedFor(block, p))) * 60);
+  return Math.max(MIN_BLOCK_SECONDS, (spokenWords(block, p) / (p.wpm * speedFor(block, p))) * 60);
 }
 
 export interface SectionLength {
@@ -53,7 +64,7 @@ export function sectionLengths(script: Script, p: Pacing): SectionLength[] {
   for (const block of script.blocks) {
     const sec = out[block.section];
     if (!sec || block.type === "separator") continue;
-    sec.words += block.words;
+    sec.words += spokenWords(block, p);
     sec.seconds += blockSeconds(block, p);
     if (block.type === "heading") sec.seconds += p.headingPause;
   }

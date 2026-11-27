@@ -134,3 +134,11 @@ def test_bench_script_words_skip_margin_notes():
 
     md = "Dat was het^[glimlach] voor vandaag[^1].\n\n[^1]: niet\n    uitspreken\n"
     assert script_words(md) == ["Dat", "was", "het", "voor", "vandaag."]
+
+
+def test_bench_script_words_skip_headings_unless_spoken():
+    from souffleur_voice.bench import script_words
+
+    md = "# Video 1\n\nHallo daar.\n"
+    assert script_words(md) == ["Hallo", "daar."]
+    assert script_words(md, speak_headings=True) == ["Video", "1", "Hallo", "daar."]

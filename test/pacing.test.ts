@@ -4,7 +4,7 @@ import { parseScript } from "../src/parser";
 import { DEFAULT_SETTINGS } from "../src/settings";
 
 // 120 wpm = 2 words per second makes the arithmetic easy to check.
-const P = { ...DEFAULT_SETTINGS, wpm: 120, headingSpeed: 1, paragraphSpeed: 1, listSpeed: 1, quoteSpeed: 1, headingPause: 1 };
+const P = { ...DEFAULT_SETTINGS, wpm: 120, headingSpeed: 1, paragraphSpeed: 1, listSpeed: 1, quoteSpeed: 1, headingPause: 1, speakHeadings: true };
 
 const SCRIPT = parseScript(`# Eerste video
 
@@ -36,6 +36,14 @@ describe("pacing", () => {
     expect(b?.words).toBe(5);
     expect(b?.seconds).toBeCloseTo(3.5);
     expect(b?.line).toBe(6);
+  });
+
+  test("unspoken headings: no words, minimum time, pause stays", () => {
+    const [a, b] = sectionLengths(SCRIPT, { ...P, speakHeadings: false });
+    // heading 0.4 s minimum + 1 s pause + paragraph 5 s
+    expect(a?.words).toBe(10);
+    expect(a?.seconds).toBeCloseTo(6.4);
+    expect(b?.words).toBe(4);
   });
 
   test("format", () => {

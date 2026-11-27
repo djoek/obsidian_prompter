@@ -128,6 +128,10 @@ change the speed for this session only.
   heading.
 - Headings, paragraphs, list items and `>` quotes each get their own **speed
   multiplier**.
+- Headings are **labels**, not text you say: they show, but aren't highlighted,
+  matched by voice tracking or counted in the timing (their pause stays). Turn
+  on *Pacing → Read headings aloud* if you do say them, or per note with
+  `souffleur: { speakHeadings: true }`.
 - `%% comments %%` and `<!-- comments -->` are **hidden**: use them for
   directions to yourself.
 - `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` are shown.

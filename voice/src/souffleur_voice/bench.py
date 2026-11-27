@@ -16,13 +16,16 @@ from souffleur_voice.asr import SAMPLE_RATE, Recognizer, resample
 from souffleur_voice.normalize import normalize_text
 
 
-def script_words(markdown: str) -> list[str]:
-    """Rough Markdown → words, close to what the plugin shows."""
+def script_words(markdown: str, speak_headings: bool = False) -> list[str]:
+    """Rough Markdown → the words you say, as the plugin counts them.
+    Headings are labels (not said) unless `speak_headings`."""
     text = re.sub(r"\A---\n.*?\n---\n", "", markdown, flags=re.S)  # frontmatter
     text = re.sub(r"%%.*?%%|<!--.*?-->", " ", text, flags=re.S)  # comments
     # Margin notes aren't spoken: footnote definitions, ^[inline] and [^refs].
     text = re.sub(r"^\[\^[^\]\s]+\]:.*(?:\n(?: {2,}|\t)\S.*)*", "", text, flags=re.M)
     text = re.sub(r"\^\[(?:[^\[\]]|\[[^\[\]]*\])*\]|\[\^[^\]\s]+\]", "", text)
+    if not speak_headings:
+        text = re.sub(r"^ {0,3}#{1,6}\s.*$", "", text, flags=re.M)
     text = re.sub(r"^\s*(#{1,6}|[-*+]|\d+[.)]|>)\s+", "", text, flags=re.M)
     text = re.sub(r"^\s*([-*_])(\s*\1){2,}\s*$", "", text, flags=re.M)  # ---
     text = re.sub(r"\*\*|__|==|~~|\*|`", "", text)
