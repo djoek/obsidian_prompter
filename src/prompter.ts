@@ -476,8 +476,11 @@ export class Prompter {
     return Math.max(12, Math.min(300, Math.floor(size)));
   }
 
+  /** `pos` is the top of the line you read; shift by half a line so the
+   * middle of that line sits on the eye line, level with the markers. */
   private draw(): void {
-    this.content.style.transform = `translateY(${this.eyeY() - this.pos}px)`;
+    const y = this.eyeY() - this.pos - this.lineHeightPx() / 2;
+    this.content.style.transform = `translateY(${y}px)`;
   }
 
   // ── Position helpers ───────────────────────────────────────────────────
@@ -994,7 +997,9 @@ export class Prompter {
   private follow(dt: number): void {
     const el = this.wordEls[this.voiceWord];
     if (!el || !this.playing) return;
-    const target = this.offsetIn(el);
+    // Aim at the word's middle: a word's box is only as tall as its letters,
+    // so its top isn't the top of the line (that's what `pos` means).
+    const target = this.offsetIn(el) + el.offsetHeight / 2 - this.lineHeightPx() / 2;
     this.pos += (target - this.pos) * (1 - Math.exp(-dt / FOLLOW_TAU));
   }
 

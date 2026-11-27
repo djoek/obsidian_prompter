@@ -266,8 +266,10 @@ progress.sf-download {
 /* Focus band: everything outside N lines from the eye line is dimmed. */
 .sf-band {
   --line: calc(var(--sf-size) * var(--sf-line));
-  --top: calc(var(--sf-eye-pos) - var(--line) * 0.35);
-  --bottom: calc(var(--sf-eye-pos) + var(--line) * var(--sf-band-lines));
+  /* The line you read is centred on the eye line: the band starts half a
+     line above it and runs N lines down. */
+  --top: calc(var(--sf-eye-pos) - var(--line) * 0.55);
+  --bottom: calc(var(--sf-eye-pos) + var(--line) * (var(--sf-band-lines) - 0.45));
   --dim: color-mix(in srgb, var(--sf-bg) 72%, transparent);
   position: absolute;
   inset: 0;
