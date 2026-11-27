@@ -107,9 +107,10 @@ export class VoiceClient {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  /** `language`: ISO 639-1 code, or null to let the model decide. */
-  sendScript(words: string[], word: number, language: string | null): void {
-    this.send({ type: "script", words, word, language });
+  /** `language`: ISO 639-1 code, or null to let the model decide.
+   * `sections`: the word each section starts at. */
+  sendScript(words: string[], word: number, language: string | null, sections: number[]): void {
+    this.send({ type: "script", words, word, language, sections });
   }
 
   /** Forget what was heard and start recognition afresh; keeps your place. */

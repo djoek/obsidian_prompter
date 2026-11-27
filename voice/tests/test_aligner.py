@@ -142,3 +142,68 @@ def test_bench_script_words_skip_headings_unless_spoken():
     md = "# Video 1\n\nHallo daar.\n"
     assert script_words(md) == ["Hallo", "daar."]
     assert script_words(md, speak_headings=True) == ["Video", "1", "Hallo", "daar."]
+
+
+def words(text: str) -> list[str]:
+    return text.split()
+
+
+# Two videos that share their opening and sign-off, as a file of 20 videos does.
+VIDEOS = words(
+    "Hallo en welkom bij deze video over licht . Vandaag leg ik uit hoe je een "
+    "softbox plaatst en waarom dat werkt . Dat was het , tot de volgende keer . "
+    "Hallo en welkom bij deze video over geluid . Vandaag leg ik uit hoe je een "
+    "microfoon kiest en waar je hem zet . Dat was het , tot de volgende keer ."
+)
+SECOND = VIDEOS.index("Hallo", 1)
+SECTIONS = [0, SECOND]
+
+
+def sectioned() -> Aligner:
+    return Aligner(VIDEOS, sections=SECTIONS)
+
+
+def test_quiet_at_section_end_does_not_jump_ahead():
+    a = sectioned()
+    a.update(normalize_text("Hallo en welkom bij deze video over licht"))
+    a.seek(VIDEOS.index("Dat"))
+    a.update(normalize_text("dat was het tot de volgende keer"))
+    end = a.word
+    # Silence: the model revises its last words; the same sign-off exists
+    # further on, but the next video hasn't started.
+    assert a.update(normalize_text("was het tot de volgende keer")) is None
+    assert a.update(normalize_text("tot de volgende keer")) is None
+    assert a.word == end
+
+
+def test_next_section_starts_when_its_first_words_are_heard():
+    a = sectioned()
+    a.seek(VIDEOS.index("Dat"))
+    a.update(normalize_text("dat was het tot de volgende keer"))
+    moved = a.update(normalize_text("tot de volgende keer hallo en welkom bij deze video"))
+    assert moved is not None and moved >= SECOND
+
+
+def test_after_a_jump_wait_for_the_first_words():
+    a = sectioned()
+    a.seek(SECOND)  # you pressed N
+    # Words that only match deep into the section are ignored...
+    assert a.update(normalize_text("microfoon kiest en waar")) is None
+    assert a.word == SECOND
+    # ...until the section's first words are heard.
+    assert a.update(normalize_text("hallo en welkom bij deze")) is not None
+
+
+def test_never_skips_a_whole_section():
+    third = VIDEOS + words("Hallo en welkom bij deze video over kleur .")
+    a = Aligner(third, sections=[0, SECOND, len(VIDEOS)])
+    a.update(normalize_text("Hallo en welkom bij deze video over licht"))
+    # The third video's opening, while still in the first: not followed.
+    assert a.update(normalize_text("hallo en welkom bij deze video over kleur")) is None
+    assert a.section_of(a.pos) == 0
+
+
+def test_starting_mid_section_still_follows():
+    a = sectioned()
+    a.seek(VIDEOS.index("softbox"))  # opened at the cursor, mid-video
+    assert a.update(normalize_text("softbox plaatst en waarom dat werkt")) is not None

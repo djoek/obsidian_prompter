@@ -3,8 +3,9 @@
 Messages are JSON objects with a "type".
 
 Plugin → server
-  {"type": "script", "words": [...], "word": n, "language": "nl" | null}
-                                                  the words, as numbered on screen
+  {"type": "script", "words": [...], "word": n, "language": "nl" | null,
+   "sections": [n, ...]}                          the words, as numbered on screen, and
+                                                  the word each section starts at
   {"type": "seek", "word": n}                     you jumped (N, P, Home, ...)
   {"type": "devices"}                             list microphones
   {"type": "device", "name": "..." | null}        switch microphone (null = default)
@@ -240,7 +241,11 @@ class VoiceServer:
         match msg.get("type"):
             case "script":
                 language = msg.get("language") or None
-                self.aligner = Aligner(msg["words"], lang=language or self.lang)
+                self.aligner = Aligner(
+                    msg["words"],
+                    lang=language or self.lang,
+                    sections=[int(n) for n in msg.get("sections") or []],
+                )
                 self.aligner.seek(int(msg.get("word", 0)))
                 if language != self.language:
                     self.language = language

@@ -68,8 +68,16 @@ write down what you said. It only has to give the aligner enough to find
    three words or fewer is ignored: that is the model revising its draft, not
    you going back, and it would make the screen twitch.
 
+5. **Sections.** A new section (video) only starts counting once its first
+   words are heard: the first match must be within its first 12 words, on
+   stronger evidence, and it never skips a whole section. When you're quiet at
+   the end of a video, the model sometimes revises its last words; without
+   this rule, a sign-off every video shares ("tot de volgende keer") could
+   pull the position into the next one.
+
 When you press N, P, Home or End in the prompter, the plugin tells this
-process, which jumps there and forgets what it heard before.
+process, which jumps there, forgets what it heard before, and waits for the
+first words again.
 
 ## Tuning with `bench`
 

@@ -12,8 +12,9 @@ import type { PrompterSettings } from "./settings";
 export interface PrompterCallbacks {
   /** Called when the speed changes from the keyboard, so it can be saved. */
   onWpmChange?: (wpm: number) => void;
-  /** The words as numbered on screen, after every (re)render. */
-  onScript?: (words: string[], word: number) => void;
+  /** The words as numbered on screen, after every (re)render, with the word
+   * each section starts at. */
+  onScript?: (words: string[], word: number, sections: number[]) => void;
   /** You jumped (N, P, Home, ...): `word` is the first word you'll say next. */
   onSeek?: (word: number) => void;
   /** V pressed in the prompter. */
@@ -200,7 +201,10 @@ export class Prompter {
 
   /** Tell listeners (the voice process) the words and where we are. */
   announce(): void {
-    this.callbacks.onScript?.(this.words(), this.wordAtPos());
+    const sections = this.script.sections.map(
+      (s) => this.blockWord[s.firstBlock] ?? this.wordEls.length,
+    );
+    this.callbacks.onScript?.(this.words(), this.wordAtPos(), sections);
   }
 
   words(): string[] {

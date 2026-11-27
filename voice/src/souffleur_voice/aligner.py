@@ -23,6 +23,7 @@ Two teleprompter-specific choices on top:
    where you are now, not where you were two seconds ago.
 """
 
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -73,6 +74,14 @@ class Aligner:
     # draft words sometimes run ahead and then get corrected; following that
     # would make the screen twitch, and a few words back is the same line.
     ignore_back: int = 3
+    # Sections (one per video): the word index where each starts. A section
+    # only starts counting once its first words are heard: the first match in
+    # it must lie within its first `section_gate` words, with stronger evidence.
+    # This stops a silence (when the model revises its last words) or a phrase
+    # every video shares ("tot de volgende keer") from jumping ahead.
+    sections: Sequence[int] = ()
+    section_gate: int = 12
+    min_score_section: float = 6.0
 
     def __post_init__(self) -> None:
         # Normalized tokens, plus where each came from in `words`. Tokens that
@@ -85,6 +94,22 @@ class Aligner:
                 self.tokens.append(n)
                 self.origin.append(i)
         self.pos = 0  # index into self.tokens
+        # Token index where each section starts.
+        self.section_tokens = sorted(
+            {
+                next((t for t, o in enumerate(self.origin) if o >= s), len(self.tokens))
+                for s in self.sections
+            }
+        )
+        # Nothing heard yet in this section (at the start, and after a jump).
+        self.waiting = True
+
+    def section_of(self, token: int) -> int:
+        """Which section a token is in (-1: before the first)."""
+        return bisect_right(self.section_tokens, token) - 1
+
+    def _section_start(self, section: int) -> int:
+        return self.section_tokens[section] if 0 <= section < len(self.section_tokens) else 0
 
     @property
     def word(self) -> int:
@@ -95,6 +120,7 @@ class Aligner:
         """Jump to an original word index (when you press N or P)."""
         self.pos = next((t for t, o in enumerate(self.origin) if o >= word), len(self.origin) - 1)
         self.pos = max(self.pos, 0)
+        self.waiting = True
 
     def _distance(self, token: int) -> int:
         """How far a candidate is from us; behind counts double, since speech
@@ -149,5 +175,22 @@ class Aligner:
         needed = self.min_score if found.token > self.pos else self.min_score_back
         if found.score < needed:
             return None
+        if self.section_tokens and found.token > self.pos and not self._may_enter(found):
+            return None
         self.pos = found.token
+        self.waiting = False
         return found.word
+
+    def _may_enter(self, found: Match) -> bool:
+        """Moving forward into a section that hasn't been heard yet: only the
+        next section, matched near its start, on strong evidence."""
+        here = self.section_of(self.pos)
+        there = self.section_of(found.token)
+        if there == here and not self.waiting:
+            return True  # already speaking in this section
+        if there > here + 1:
+            return False  # never skip a whole section
+        # Near the start of the new section, or near where you are when waiting
+        # in this one (e.g. you opened the prompter mid-section).
+        start = self._section_start(there) if there != here else self.pos
+        return found.token - start < self.section_gate and found.score >= self.min_score_section

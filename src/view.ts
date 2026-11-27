@@ -71,7 +71,8 @@ export class PrompterView extends ItemView {
           void this.plugin.updateSettings({ wpm }, false);
         }
       },
-      onScript: (words, word) => this.plugin.voice?.sendScript(words, word, this.language()),
+      onScript: (words, word, sections) =>
+        this.plugin.voice?.sendScript(words, word, this.language(), sections),
       onSeek: (word) => this.plugin.voice?.seek(word),
       onToggleVoice: () => void this.plugin.toggleVoice(),
       onResetVoice: () => this.plugin.resetVoice(),
