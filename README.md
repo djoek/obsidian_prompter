@@ -46,11 +46,41 @@ Then enable **Teleprompter** under *Settings → Community plugins*.
 | Home / End | First / last section |
 | H | Show/hide the status bar |
 | F | Fullscreen on/off (Esc also leaves) |
+| V | Voice tracking on/off |
+| R | Reset voice matching (see below) |
+| D | Diagnostics: frame rate, position, window state |
 | Mouse wheel | Scroll by hand |
 
 Play/pause, next, previous, faster and slower are also Obsidian commands, so
 you can give them hotkeys that work from the main window, or trigger them from
 a Stream Deck that sends those hotkeys.
+
+If the text doesn't scroll in macOS full screen (the green button), press **D**:
+`raf` counts normal animation frames and `timer` counts frames from the
+fallback timer. The prompter keeps moving either way; if both counts move but
+the text doesn't, please report what the overlay says.
+
+## Per-note settings (frontmatter)
+
+A note can override any setting in its frontmatter. All of it is optional.
+
+```yaml
+---
+language: nl          # or lang: — a code (nl, nl-BE) or a name (Nederlands)
+teleprompter:
+  fontSize: 64
+  wpm: 150
+  flipH: true
+  nextColor: "#ffd166"
+---
+```
+
+The keys under `teleprompter:` are the setting names from `src/settings.ts`
+(for example `fontFamily`, `lineHeight`, `eyeLine`, `headingPause`,
+`stopAtSection`, `rotation`). Wrong names or values are ignored and listed in
+a notice. Voice-process settings (command, address, microphone) are
+machine-wide and can't be set per note. With a `wpm` in the note, + and −
+change the speed for this session only.
 
 ## How the note is read
 
@@ -155,7 +185,18 @@ and the next few words (4 by default) get their own colour, so your eye
 knows where to go. Both are in the settings, under *Reading aids*.
 
 The status bar shows a level meter and the last words heard, so you can see
-that it works. **Space** pauses and resumes following. There is also a command,
+that it works.
+
+Parakeet v3 recognises the language from the first things it hears and then
+sticks with it. If it picked the wrong one (or stops following for another
+reason), press **R** in the prompter, use the command **Reset voice matching**,
+or the **Reset** button in the settings: it forgets what it heard and starts
+listening afresh. Your place in the script stays.
+
+The **language** (from the note's frontmatter, or the default in the settings)
+tells the matcher how to read numbers: `2026` is matched as *tweeduizend
+zesentwintig* in Dutch, *two thousand twenty-six* in English. Parakeet itself
+can't be told the language. **Space** pauses and resumes following. There is also a command,
 **Toggle voice tracking**, for a hotkey.
 
 How it works, how to tune it, and how to test it on your own recording:

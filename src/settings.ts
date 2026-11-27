@@ -41,6 +41,9 @@ export interface PrompterSettings {
 
   // Voice tracking
   voiceEnabled: boolean;
+  /** Default script language (ISO 639-1); "" = let the model decide. A note's
+   * frontmatter `language:` overrides it. */
+  language: string;
   voiceUrl: string;
   voiceDevice: string; // "" = system default
   voiceCommand: string; // "" = start it yourself
@@ -84,6 +87,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   flipV: false,
 
   voiceEnabled: false,
+  language: "",
   voiceUrl: "ws://127.0.0.1:8765",
   voiceDevice: "",
   voiceCommand: VOICE_COMMAND,

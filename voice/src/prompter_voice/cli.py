@@ -4,7 +4,7 @@ import contextlib
 import logging
 from pathlib import Path
 
-DEFAULT_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
+from prompter_voice.asr import PARAKEET as DEFAULT_MODEL
 
 
 def main() -> None:
@@ -23,7 +23,11 @@ def main() -> None:
     b.add_argument("script", type=Path, help="the script, as .md or .txt")
 
     for sp in (serve, b):
-        sp.add_argument("--model", default=DEFAULT_MODEL)
+        sp.add_argument(
+            "--model",
+            default=DEFAULT_MODEL,
+            help="Hugging Face id of a Parakeet model",
+        )
         sp.add_argument("--lang", default="nl", help="language for spelling out numbers")
         sp.add_argument(
             "--portable",
@@ -46,24 +50,24 @@ def main() -> None:
             for d in input_devices():
                 print(("* " if d.default else "  ") + d.name)
         case "bench":
-            from prompter_voice.asr import ParakeetRecognizer
+            from prompter_voice.asr import make_recognizer
             from prompter_voice.bench import bench, read_wav, script_words
 
-            recognizer = ParakeetRecognizer(args.model, portable=args.portable)
+            recognizer = make_recognizer(args.model, portable=args.portable)
             words = script_words(args.script.read_text(encoding="utf-8"))
             bench(recognizer, read_wav(args.audio), words)
         case _:
-            from prompter_voice.asr import ParakeetRecognizer
+            from prompter_voice.asr import make_recognizer
             from prompter_voice.download import download
             from prompter_voice.server import VoiceServer, serve_forever
 
-            model = getattr(args, "model", DEFAULT_MODEL)
-
+            portable = getattr(args, "portable", False)
             server = VoiceServer(
-                lambda: ParakeetRecognizer(model, portable=getattr(args, "portable", False)),
+                lambda model_id: make_recognizer(model_id, portable=portable),
+                model=getattr(args, "model", DEFAULT_MODEL),
                 device=getattr(args, "device", None),
                 lang=getattr(args, "lang", "nl"),
-                prepare=lambda on_progress: download(model, on_progress),
+                prepare=download,
             )
             with contextlib.suppress(KeyboardInterrupt):
                 asyncio.run(

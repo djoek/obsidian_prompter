@@ -9,16 +9,17 @@ After this, the model loader finds the files in the cache and loads instantly.
 
 import io
 from collections.abc import Callable
+from pathlib import Path
 
-from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
-from huggingface_hub.hf_api import RepoFile
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
+from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import tqdm as hf_tqdm
 
 # (bytes done, bytes total)
 Progress = Callable[[int, int], None]
 
-# What parakeet-mlx loads. The weights are nearly all of the size.
-PARAKEET_FILES = ("config.json", "model.safetensors")
+# Files in a model repository that loading doesn't need.
+SKIP = (".md", ".gitattributes", "LICENSE", "LICENSE.md", ".png", ".jpg")
 
 
 def _reporter(callback: Progress, offset: list[int], total: int) -> type[hf_tqdm]:
@@ -46,27 +47,34 @@ def _reporter(callback: Progress, offset: list[int], total: int) -> type[hf_tqdm
     return Reporter
 
 
-def is_cached(model_id: str, files: tuple[str, ...] = PARAKEET_FILES) -> bool:
-    return all(isinstance(try_to_load_from_cache(model_id, f), str) for f in files)
+def is_cached(model_id: str) -> bool:
+    """True if a complete-looking copy is in the cache (no network needed)."""
+    try:
+        folder = Path(snapshot_download(model_id, local_files_only=True))
+    except LocalEntryNotFoundError:
+        return False
+    return (folder / "config.json").exists() and any(folder.glob("*.safetensors"))
 
 
-def download(model_id: str, on_progress: Progress, files: tuple[str, ...] = PARAKEET_FILES) -> None:
-    """Fetch `files` of `model_id` into the Hugging Face cache.
+def download(model_id: str, on_progress: Progress) -> None:
+    """Fetch the model files of `model_id` into the Hugging Face cache.
 
-    Asks for all file sizes first, so progress is one bar that only goes up.
-    Does nothing (beyond reporting "done") when everything is cached, which
-    also means no network is needed after the first start.
+    Asks for the file list with sizes first, so progress is one bar that only
+    goes up. Does nothing (beyond reporting "done") when the model is cached,
+    which also means no network is needed after the first start.
     """
-    if is_cached(model_id, files):
+    if is_cached(model_id):
         on_progress(1, 1)
         return
-    infos = HfApi().get_paths_info(model_id, list(files))
-    sizes = {i.path: i.size for i in infos if isinstance(i, RepoFile)}
-    total = sum(sizes.values()) or 1
+    info = HfApi().model_info(model_id, files_metadata=True)
+    files = [
+        (s.rfilename, s.size or 0) for s in info.siblings or [] if not s.rfilename.endswith(SKIP)
+    ]
+    total = sum(size for _, size in files) or 1
     offset = [0]
     on_progress(0, total)
     reporter = _reporter(on_progress, offset, total)
-    for name in files:
+    for name, size in files:
         hf_hub_download(model_id, name, tqdm_class=reporter)
-        offset[0] += sizes.get(name, 0)
+        offset[0] += size
         on_progress(min(offset[0], total), total)

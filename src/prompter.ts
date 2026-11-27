@@ -15,10 +15,20 @@ export interface PrompterCallbacks {
   onScript?: (words: string[], word: number) => void;
   /** You jumped (N, P, Home, ...): `word` is the first word you'll say next. */
   onSeek?: (word: number) => void;
+  /** V pressed in the prompter. */
+  onToggleVoice?: () => void;
+  /** R pressed in the prompter. */
+  onResetVoice?: () => void;
 }
 
 const MIN_BLOCK_SECONDS = 0.4;
 const JUMP_MS = 450;
+/**
+ * If no animation frame arrives within this time, run the loop from a timer.
+ * Some setups (macOS full screen on a DisplayLink display) stop delivering
+ * requestAnimationFrame callbacks; the timer keeps the prompter moving.
+ */
+const FRAME_FALLBACK_MS = 50;
 /** Voice mode: seconds to close ~63% of the gap to the spoken word. */
 const FOLLOW_TAU = 0.35;
 
@@ -53,6 +63,11 @@ export class Prompter {
   private tween: Tween | null = null;
   private lastFrame = 0;
   private frame = 0;
+  private frameTimer = 0;
+  // Diagnostics (D key): frames per second, and how many came from the timer.
+  private diag = false;
+  private diagEl: HTMLElement;
+  private frames = { raf: 0, timer: 0, since: 0 };
   private toastTimer = 0;
   private resizeObserver: ResizeObserver;
 
@@ -85,12 +100,33 @@ export class Prompter {
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(this.stage);
 
+    this.diagEl = this.el("pre", "tp-diag", this.rotor);
+    this.diagEl.hidden = true;
     this.applySettings(settings);
-    this.frame = this.win.requestAnimationFrame(this.tick);
+    this.schedule();
+  }
+
+  /** Ask for the next frame from both sources; whichever fires first wins. */
+  private schedule(): void {
+    this.frame = this.win.requestAnimationFrame((t) => this.runFrame(t, "raf"));
+    this.frameTimer = this.win.setTimeout(
+      () => this.runFrame(this.win.performance.now(), "timer"),
+      FRAME_FALLBACK_MS,
+    );
+  }
+
+  private runFrame(now: number, source: "raf" | "timer"): void {
+    this.win.cancelAnimationFrame(this.frame);
+    this.win.clearTimeout(this.frameTimer);
+    this.frames[source]++;
+    this.tick(now);
+    if (this.diag) this.updateDiag(now);
+    this.schedule();
   }
 
   destroy(): void {
     this.win.cancelAnimationFrame(this.frame);
+    this.win.clearTimeout(this.frameTimer);
     this.resizeObserver.disconnect();
     this.stage.remove();
   }
@@ -339,8 +375,28 @@ export class Prompter {
       this.updateHud();
     }
     this.draw();
-    this.frame = this.win.requestAnimationFrame(this.tick);
   };
+
+  toggleDiag(): void {
+    this.diag = !this.diag;
+    this.diagEl.hidden = !this.diag;
+    this.frames = { raf: 0, timer: 0, since: this.win.performance.now() };
+  }
+
+  private updateDiag(now: number): void {
+    const secs = (now - this.frames.since) / 1000;
+    if (secs < 0.5) return;
+    const { raf, timer } = this.frames;
+    const fs = this.doc.fullscreenElement ? "element" : "no";
+    this.diagEl.textContent =
+      `frames/s  ${((raf + timer) / secs).toFixed(0)}  (raf ${raf}, timer ${timer})\n` +
+      `pos       ${this.pos.toFixed(0)} / ${this.total}\n` +
+      `playing   ${this.playing}   voice ${this.voice}\n` +
+      `size      ${this.stage.clientWidth}×${this.stage.clientHeight}  ` +
+      `dpr ${this.win.devicePixelRatio}  fullscreen ${fs}\n` +
+      `visible   ${this.doc.visibilityState}  focus ${this.doc.hasFocus()}`;
+    this.frames = { raf: 0, timer: 0, since: now };
+  }
 
   /**
    * The structure-aware part: speed is "this block's height, in the time it
@@ -526,6 +582,18 @@ export class Prompter {
       case "F":
         this.toggleFullscreen();
         break;
+      case "v":
+      case "V":
+        this.callbacks.onToggleVoice?.();
+        break;
+      case "r":
+      case "R":
+        this.callbacks.onResetVoice?.();
+        break;
+      case "d":
+      case "D":
+        this.toggleDiag();
+        break;
       default:
         return false;
     }
@@ -618,7 +686,7 @@ export class Prompter {
     this.hud.textContent = `${state}  ${mode}  ·  ${n + 1}/${total}  ${title}${info}`;
   }
 
-  private toast(text: string): void {
+  toast(text: string): void {
     this.toastEl.textContent = text;
     this.toastEl.toggleAttribute("data-show", true);
     this.win.clearTimeout(this.toastTimer);

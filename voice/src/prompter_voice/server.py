@@ -3,10 +3,13 @@
 Messages are JSON objects with a "type".
 
 Plugin → server
-  {"type": "script", "words": [...], "word": n}   the words, as numbered on screen
+  {"type": "script", "words": [...], "word": n, "language": "nl" | null}
+                                                  the words, as numbered on screen
   {"type": "seek", "word": n}                     you jumped (N, P, Home, ...)
   {"type": "devices"}                             list microphones
   {"type": "device", "name": "..." | null}        switch microphone (null = default)
+  {"type": "reset"}                               forget what was heard, start recognition
+                                                  afresh (Parakeet re-detects the language)
 
 Server → plugin
   {"type": "status", "state": "downloading"|"loading"|"ready"|"error", "device": ...,
@@ -18,9 +21,10 @@ Server → plugin
 """
 
 import asyncio
+import contextlib
 import json
 import logging
-import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
@@ -43,15 +47,22 @@ TICK = 0.25  # seconds between recognition steps
 class VoiceServer:
     def __init__(
         self,
-        make_recognizer,  # noqa: ANN001  () -> Recognizer
+        make_recognizer: Callable[[str], Recognizer],
+        model: str,
         device: str | None,
         lang: str = "nl",
-        prepare=None,  # noqa: ANN001  (on_progress) -> None: fetch the model files
+        prepare: Callable[[str, Callable[[int, int], None]], None] | None = None,
     ) -> None:
         self.make_recognizer = make_recognizer
-        self.prepare = prepare
+        self.prepare = prepare  # (model id, on_progress): fetch the model files
+        self.model_id = model
+        self._model_lock = asyncio.Lock()
+        # Language of the current script (None: let the model decide). `lang`
+        # is the fallback for spelling out numbers.
+        self.language: str | None = None
+        self._latest: tuple[int, int] | None = None
+        self._progress_changed = asyncio.Event()
         self.progress: tuple[int, int] | None = None
-        self._progress_sent = 0.0
         self.device_name = device
         self.lang = lang
         self.recognizer: Recognizer | None = None
@@ -85,7 +96,7 @@ class VoiceServer:
             type="status",
             state=self.state,
             device=self.mic.name if self.mic else None,
-            model=self.recognizer.name if self.recognizer else None,
+            model=self.model_id,
             error=self.error,
             progress=(
                 {"done": self.progress[0], "total": self.progress[1]}
@@ -108,21 +119,30 @@ class VoiceServer:
     # ── lifecycle ────────────────────────────────────────────────────────
 
     def _on_progress(self, done: int, total: int) -> None:
-        """Called on the worker thread while downloading; hands over to the
-        event loop, which sends at most 4 updates a second (plus the last)."""
+        """Called on the worker thread while downloading.
 
-        def apply() -> None:
-            if total <= 1:  # already cached: nothing to show
-                return
-            self.state, self.progress = "downloading", (done, total)
-            now = time.monotonic()
-            if done >= total or now - self._progress_sent >= 0.25:
-                self._progress_sent = now
-                # Build the message now: by the time it is sent, the download
-                # has moved on, and we want this update's numbers.
-                asyncio.ensure_future(self.send(**self.status()))
+        It stores the numbers directly (replacing a tuple is atomic in Python)
+        and only *wakes* the event loop. Callbacks queued from this thread can
+        be handled after the download has already returned, so nothing may
+        depend on them arriving in time: `_download` reads `_latest` itself.
+        """
+        if total > 1:  # (1, 1) means "was already cached"
+            self._latest = (done, total)
+            self.loop.call_soon_threadsafe(self._progress_changed.set)
 
-        self.loop.call_soon_threadsafe(apply)
+    def latest_progress(self) -> tuple[int, int] | None:
+        """What the worker thread last reported (it writes `_latest`)."""
+        return self._latest
+
+    async def _report_progress(self) -> None:
+        """While downloading: send the latest progress, at most 4× a second."""
+        while True:
+            await self._progress_changed.wait()
+            self._progress_changed.clear()
+            if self._latest:
+                self.state, self.progress = "downloading", self._latest
+                await self.send_status()
+            await asyncio.sleep(0.25)
 
     async def start(self) -> None:
         self.loop = asyncio.get_running_loop()
@@ -133,19 +153,46 @@ class VoiceServer:
         except Exception as e:
             self.error = f"Microphone: {e}"
             log.warning("Could not open microphone: %s", e)
+        await self.load_model(self.model_id)
+
+    async def _download(self, model_id: str) -> None:
+        assert self.prepare is not None
+        self._latest = None
+        self._progress_changed = asyncio.Event()
+        reporter = asyncio.create_task(self._report_progress())
         try:
-            if self.prepare:
-                await self.run_in_worker(self.prepare, self._on_progress)
-            self.state = "loading"
+            await self.run_in_worker(self.prepare, model_id, self._on_progress)
+        finally:
+            reporter.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reporter
+        latest = self.latest_progress()  # written by the worker thread meanwhile
+        if latest:  # it really downloaded: end on a full bar
+            total = latest[1]
+            self.state, self.progress = "downloading", (total, total)
             await self.send_status()
-            log.info("Loading model ...")
-            self.recognizer = await self.run_in_worker(self.make_recognizer)
-            self.state = "ready" if self.mic else "error"
-            log.info("Ready: %s", self.recognizer.name)
-        except Exception as e:  # report to the plugin instead of dying
-            self.state, self.error = "error", str(e)
-            log.exception("Startup failed")
-        await self.send_status()
+
+    async def load_model(self, model_id: str) -> None:
+        """Download (with progress) and load a model; replaces the current one."""
+        async with self._model_lock:
+            self.model_id = model_id
+            self.recognizer = None  # listening pauses while switching
+            self.progress = None
+            try:
+                if self.prepare:
+                    await self._download(model_id)
+                self.state = "loading"
+                await self.send_status()
+                log.info("Loading %s ...", model_id)
+                recognizer = await self.run_in_worker(self.make_recognizer, model_id)
+                await self.run_in_worker(recognizer.set_language, self.language)
+                self.recognizer = recognizer
+                self.state = "ready" if self.mic else "error"
+                log.info("Ready: %s", model_id)
+            except Exception as e:  # report to the plugin instead of dying
+                self.state, self.error = "error", str(e)
+                log.exception("Loading %s failed", model_id)
+            await self.send_status()
 
     async def listen(self) -> None:
         while True:
@@ -168,7 +215,7 @@ class VoiceServer:
             if heard != self.last_heard:
                 self.last_heard = heard
                 await self.send(type="heard", text=heard)
-            moved = aligner.update(normalize_text(heard, self.lang))
+            moved = aligner.update(normalize_text(heard, aligner.lang))
             if moved is not None:
                 await self.send(type="position", word=moved)
 
@@ -192,12 +239,21 @@ class VoiceServer:
     async def on_message(self, msg: dict[str, Any]) -> None:
         match msg.get("type"):
             case "script":
-                self.aligner = Aligner(msg["words"], lang=self.lang)
+                language = msg.get("language") or None
+                self.aligner = Aligner(msg["words"], lang=language or self.lang)
                 self.aligner.seek(int(msg.get("word", 0)))
+                if language != self.language:
+                    self.language = language
+                    if self.recognizer:
+                        await self.run_in_worker(self.recognizer.set_language, language)
                 await self.reset_recognizer()
-                log.info("Script: %d words", len(msg["words"]))
+                log.info("Script: %d words, language %s", len(msg["words"]), language or "auto")
             case "seek" if self.aligner:
                 self.aligner.seek(int(msg["word"]))
+                await self.reset_recognizer()
+            case "reset":
+                # Your place in the script stays; only what was heard is dropped.
+                log.info("Reset requested: restarting recognition")
                 await self.reset_recognizer()
             case "devices":
                 from prompter_voice.audio import input_devices

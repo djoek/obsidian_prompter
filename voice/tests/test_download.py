@@ -2,26 +2,25 @@
 
 from types import SimpleNamespace
 
-from huggingface_hub.hf_api import RepoFile
-
 from prompter_voice import download as dl
 
 
 def test_progress_is_one_rising_bar(monkeypatch):
-    sizes = {"config.json": 200, "model.safetensors": 10_000}
+    sizes = {"README.md": 5_000, "config.json": 200, "model.safetensors": 10_000}
     monkeypatch.setattr(dl, "is_cached", lambda *a: False)
+    siblings = [SimpleNamespace(rfilename=f, size=n) for f, n in sizes.items()]
     monkeypatch.setattr(
         dl,
         "HfApi",
         lambda: SimpleNamespace(
-            get_paths_info=lambda repo, files: [
-                RepoFile(path=f, size=sizes[f], oid="0") for f in files
-            ]
+            model_info=lambda repo, files_metadata: SimpleNamespace(siblings=siblings)
         ),
     )
+    fetched: list[str] = []
 
     def fake_download(repo, name, tqdm_class):
         # Like the real library: two bars for one file, updates interleaved.
+        fetched.append(name)
         size = sizes[name]
         received = tqdm_class(total=size)
         written = tqdm_class(total=size)
@@ -34,6 +33,7 @@ def test_progress_is_one_rising_bar(monkeypatch):
     seen: list[tuple[int, int]] = []
     dl.download("some/model", lambda done, total: seen.append((done, total)))
 
+    assert fetched == ["config.json", "model.safetensors"]  # README.md skipped
     assert {total for _, total in seen} == {10_200}
     dones = [done for done, _ in seen]
     assert dones == sorted(dones), "progress went backwards"

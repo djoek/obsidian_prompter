@@ -1,14 +1,18 @@
 """Speech recognizers. Each one takes audio and returns the latest heard words.
 
-Only Parakeet is implemented. The `Recognizer` protocol is the seam where a
-second model (for example Voxtral Realtime via mlx-audio) would plug in.
+Parakeet TDT v3 (parakeet-mlx) is implemented. Other models can plug in by
+implementing the `Recognizer` protocol and adding a case to `make_recognizer`.
 """
 
+import logging
 from typing import Protocol
 
 import numpy as np
 
 SAMPLE_RATE = 16_000
+log = logging.getLogger("prompter_voice")
+
+PARAKEET = "mlx-community/parakeet-tdt-0.6b-v3"
 
 
 def resample(audio: np.ndarray, rate: int) -> np.ndarray:
@@ -35,6 +39,14 @@ class Recognizer(Protocol):
         """Forget everything heard (after a jump in the script)."""
         ...
 
+    def set_language(self, language: str | None) -> None:
+        """ISO 639-1 code, or None to let the model decide."""
+        ...
+
+
+def make_recognizer(model_id: str, portable: bool = False) -> Recognizer:
+    return ParakeetRecognizer(model_id, portable=portable)
+
 
 class ParakeetRecognizer:
     """Parakeet TDT v3 through parakeet-mlx, in streaming mode.
@@ -47,7 +59,7 @@ class ParakeetRecognizer:
 
     def __init__(
         self,
-        model_id: str = "mlx-community/parakeet-tdt-0.6b-v3",
+        model_id: str = PARAKEET,
         context: tuple[int, int] = (256, 256),
         keep_words: int = 12,
         portable: bool = False,
@@ -85,6 +97,11 @@ class ParakeetRecognizer:
             del s.finalized_tokens[:-100]
         text = "".join(t.text for t in s.finalized_tokens + s.draft_tokens)
         return text.split()[-self.keep_words :]
+
+    def set_language(self, language: str | None) -> None:
+        # Parakeet v3 has no language input: it guesses from the audio.
+        if language:
+            log.info("Parakeet v3 can't be told the language (%s); it detects it.", language)
 
     def close(self) -> None:
         if self._stream is not None:

@@ -59,10 +59,15 @@ export default class TeleprompterPlugin extends Plugin {
     this.addCommand({
       id: "toggle-voice",
       name: "Toggle voice tracking",
-      callback: async () => {
-        await this.updateSettings({ voiceEnabled: !this.settings.voiceEnabled }, false);
-        this.applyVoice();
-        new Notice(`Voice tracking ${this.settings.voiceEnabled ? "on" : "off"}`);
+      callback: () => void this.toggleVoice(),
+    });
+    this.addCommand({
+      id: "reset-voice",
+      name: "Reset voice matching",
+      checkCallback: (checking) => {
+        if (!this.voice) return false;
+        if (!checking) this.resetVoice();
+        return true;
       },
     });
 
@@ -74,6 +79,23 @@ export default class TeleprompterPlugin extends Plugin {
   }
 
   // ── Voice tracking ─────────────────────────────────────────────────────
+
+  async toggleVoice(): Promise<void> {
+    await this.updateSettings({ voiceEnabled: !this.settings.voiceEnabled }, false);
+    this.applyVoice();
+    const text = `Voice tracking ${this.settings.voiceEnabled ? "on" : "off"}`;
+    const views = this.views();
+    if (views.length) views.forEach((v) => v.prompter?.toast(text));
+    else new Notice(text);
+  }
+
+  /** Forget what was heard; recognition starts afresh (and re-detects the
+   * language). Your place in the script stays. */
+  resetVoice(): void {
+    if (!this.voice) return;
+    this.voice.reset();
+    this.views().forEach((v) => v.prompter?.toast("Voice matching reset"));
+  }
 
   /** (Re)start the voice process and client to match the settings. */
   applyVoice(): void {
@@ -211,7 +233,7 @@ export default class TeleprompterPlugin extends Plugin {
   async updateSettings(patch: Partial<PrompterSettings>, apply = true): Promise<void> {
     this.settings = { ...this.settings, ...patch };
     await this.saveData(this.settings);
-    if (apply) this.views().forEach((v) => v.prompter?.applySettings(this.settings));
+    if (apply) this.views().forEach((v) => v.refreshSettings());
   }
 }
 
@@ -441,6 +463,31 @@ class TeleprompterSettingTab extends PluginSettingTab {
       });
     });
     new Setting(containerEl)
+      .setName("Language")
+      .setDesc(
+        "Default language of your scripts: a code such as nl, or empty to let the " +
+          "model decide. A note's frontmatter `language:` overrides it. Used to " +
+          "read numbers (2026) the way you say them.",
+      )
+      .addText((t) =>
+        t
+          .setPlaceholder("auto")
+          .setValue(s.language)
+          .onChange((v) => void this.plugin.updateSettings({ language: v.trim() }, false)),
+      );
+    new Setting(containerEl)
+      .setName("Reset voice matching")
+      .setDesc(
+        "If it stops following (for example, it picked the wrong language): forget " +
+          "what it heard and start listening afresh. Also R in the prompter.",
+      )
+      .addButton((b) =>
+        b.setButtonText("Reset").onClick(() => {
+          this.plugin.resetVoice();
+          new Notice("Voice matching reset");
+        }),
+      );
+    new Setting(containerEl)
       .setName("Start command")
       .setDesc(
         "Run when voice tracking turns on, stopped when it turns off. Empty: start " +
@@ -475,7 +522,8 @@ class TeleprompterSettingTab extends PluginSettingTab {
       text:
         "Space play/pause · N next section · P restart section (twice: previous) · " +
         "↑/↓ one line · PageUp/PageDown half screen · +/− speed · Home/End first/last section · " +
-        "H status bar · F fullscreen (Esc to leave).",
+        "H status bar · F fullscreen (Esc to leave) · V voice tracking on/off · " +
+        "R reset voice matching · D diagnostics.",
     });
   }
 }

@@ -172,3 +172,17 @@ progress.tp-download {
   width: 12em;
   accent-color: var(--interactive-accent);
 }
+
+/* Diagnostics overlay (D key) */
+.tp-diag {
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  margin: 0;
+  padding: 0.5em 0.8em;
+  font: 14px/1.4 ui-monospace, Menlo, monospace;
+  color: #0f0;
+  background: rgb(0 0 0 / 0.8);
+  border-radius: 0.3em;
+}
+[hidden].tp-diag { display: none; }
