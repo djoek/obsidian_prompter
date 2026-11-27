@@ -573,17 +573,18 @@ class SouffleurSettingTab extends PluginSettingTab {
       | "markColor"
       | "eyeLineColor"
       | "nextColor"
+      | "heardColor"
       | "noteColor";
     const color = (name: string, key: ColorKey) =>
       new Setting(containerEl)
         .setName(name)
         .addColorPicker((c) => c.setValue(s[key]).onChange((v) => set({ [key]: v })));
 
-    // Emphasis follows the theme until you pick a colour; reset to follow again.
-    const themed = (name: string, key: "italicColor" | "boldColor") =>
+    // Emphasis is the text colour until you pick one; reset to go back.
+    const optional = (name: string, key: "italicColor" | "boldColor") =>
       new Setting(containerEl)
         .setName(name)
-        .setDesc(s[key] ? "Your own colour." : "Follows your theme (or the text colour if the theme has none).")
+        .setDesc(s[key] ? "Its own colour." : "Same as the text.")
         .addColorPicker((c) =>
           c.setValue(s[key] || s.textColor).onChange(async (v) => {
             await this.plugin.updateSettings({ [key]: v });
@@ -593,7 +594,7 @@ class SouffleurSettingTab extends PluginSettingTab {
         .addExtraButton((b) =>
           b
             .setIcon("rotate-ccw")
-            .setTooltip("Follow the theme")
+            .setTooltip("Same as the text")
             .setDisabled(!s[key])
             .onClick(async () => {
               await this.plugin.updateSettings({ [key]: "" });
@@ -668,8 +669,8 @@ class SouffleurSettingTab extends PluginSettingTab {
     color("Background", "backgroundColor");
     color("Headings and separators", "headingColor");
     color("==Highlight==", "markColor");
-    themed("*Italic*", "italicColor");
-    themed("**Bold**", "boldColor");
+    optional("*Italic*", "italicColor");
+    optional("**Bold**", "boldColor");
     color("Eye-line markers", "eyeLineColor");
 
     new Setting(containerEl).setName("Reading aids").setHeading();
@@ -683,15 +684,15 @@ class SouffleurSettingTab extends PluginSettingTab {
       "In the status bar: time spent in this section, and how long it normally takes at your speed.",
     );
 
-    color("Next words (voice tracking)", "nextColor");
     color("Margin notes", "noteColor");
+    color("Heard words (voice tracking)", "heardColor");
     slider(
-      "How many next words to highlight",
-      "nextWords",
+      "Keep heard words coloured",
+      "heardHold",
       0,
-      10,
-      1,
-      "With voice tracking: the words right after the one you are saying.",
+      5,
+      0.25,
+      "Seconds a word you just said keeps this colour before it dims. 0: dim at once.",
     );
 
     slider(
@@ -711,6 +712,8 @@ class SouffleurSettingTab extends PluginSettingTab {
       1,
       "Voice tracking: after this many seconds of silence, the next words light up. 0: off.",
     );
+    slider("Pause helper: words", "nextWords", 1, 10, 1, "How many of the next words light up.");
+    color("Pause helper colour", "nextColor");
 
     new Setting(containerEl).setName("Margin notes").setHeading();
     containerEl.createEl("p", {

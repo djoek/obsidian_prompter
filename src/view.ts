@@ -104,8 +104,6 @@ export class PrompterView extends ItemView {
         if (f.path === this.filePath) reload();
       }),
     );
-    // Theme or snippet changed: emphasis colours may follow the theme.
-    this.registerEvent(this.app.workspace.on("css-change", () => this.refreshSettings()));
     this.registerEvent(
       this.app.vault.on("rename", (f, oldPath) => {
         if (oldPath === this.filePath) {

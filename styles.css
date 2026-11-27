@@ -156,17 +156,19 @@
   display: none;
 }
 
-/* Voice mode: words already said fade, the current word is underlined. */
+/* Voice mode: unread text stays bright; words just heard take the "heard"
+   colour, then fade to dimmed. The current word is underlined. */
 .sf-stage[data-voice] .sf-content {
   & [data-said] { opacity: 0.45; }
+  & [data-said][data-heard] { opacity: 1; color: var(--sf-heard); }
   & [data-now] {
     text-decoration: underline var(--sf-eye) 0.08em;
     text-underline-offset: 0.15em;
   }
-  /* Colour only: bold would make words wider, re-wrap the line and make
-     the text jump under your eyes. */
-  & [data-next] { color: var(--sf-next); }
-  & span { transition: color 0.25s, opacity 0.25s; }
+  /* Colour only (bold would make words wider and the text jump). The fade
+     back is slower than the highlight, so it reads as "heard, now done". */
+  & span { transition: color 0.8s, opacity 0.8s; }
+  & span[data-heard] { transition: color 0.15s, opacity 0.15s; }
 }
 
 /* Settings: model download bar */
@@ -277,7 +279,8 @@ progress.sf-download {
 /* Pause helper: after a silence in voice mode, the next words get a soft
    background so your eye finds the way back. */
 .sf-stage[data-voice][data-paused] .sf-content [data-next] {
-  background: color-mix(in srgb, var(--sf-next) 28%, transparent);
+  color: var(--sf-next);
+  background: color-mix(in srgb, var(--sf-next) 22%, transparent);
   border-radius: 0.12em;
 }
 @media (prefers-reduced-motion: no-preference) {

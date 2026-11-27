@@ -79,6 +79,8 @@ export class Prompter {
   private voice = false;
   /** Scroll target: the word being spoken (-1 = none yet). */
   private voiceWord = -1;
+  /** Words just heard, with when: they keep data-heard for `heardHold` s. */
+  private heard: { word: number; at: number }[] = [];
   /** Highlight bookkeeping: words up to here carry data-said. */
   private marked = -1;
   private voiceInfo = "";
@@ -312,13 +314,14 @@ export class Prompter {
     st.setProperty("--sf-mark", s.markColor);
     st.setProperty("--sf-eye", s.eyeLineColor);
     st.setProperty("--sf-next", s.nextColor);
+    st.setProperty("--sf-heard", s.heardColor);
     st.setProperty("--sf-eye-pos", `${s.eyeLine}%`);
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
     st.setProperty("--sf-note", s.noteColor);
-    st.setProperty("--sf-italic", s.italicColor || this.themeColor("em") || "inherit");
-    st.setProperty("--sf-bold", s.boldColor || this.themeColor("strong") || "inherit");
+    st.setProperty("--sf-italic", s.italicColor || "inherit");
+    st.setProperty("--sf-bold", s.boldColor || "inherit");
     st.setProperty("--sf-band-lines", String(s.focusBand));
     this.content.dataset.margin = this.notes.length ? s.marginNotes : "off";
     this.notesEl.hidden = s.marginNotes === "off";
@@ -376,6 +379,7 @@ export class Prompter {
     const anchor = this.anchor();
     const marked = renumber ? -1 : this.marked;
     const voiceWord = renumber ? -1 : this.voiceWord;
+    this.heard = []; // the spans are new
     this.render();
     this.measure();
     if (anchor) this.pos = this.fromAnchor(anchor);
@@ -421,29 +425,6 @@ export class Prompter {
 
   private lineHeightPx(): number {
     return (this.fontPx || this.settings.fontSize) * this.settings.lineHeight;
-  }
-
-  /**
-   * The colour your Obsidian theme gives <em> or <strong> in reading view:
-   * render a hidden sample and read its colour. Returns "" when the theme
-   * doesn't colour it (same as its normal text), so the prompter keeps its own
-   * text colour (a light theme's dark text would vanish on a black prompter).
-   */
-  private themeColor(tag: "em" | "strong"): string {
-    const body = this.doc.body;
-    const view = this.doc.createElement("div");
-    view.className = "markdown-rendered markdown-preview-view";
-    view.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
-    const p = this.doc.createElement("p");
-    const el = this.doc.createElement(tag);
-    el.textContent = "x";
-    p.append("x", el);
-    view.append(p);
-    body.append(view);
-    const color = this.win.getComputedStyle(el).color;
-    const normal = this.win.getComputedStyle(p).color;
-    view.remove();
-    return color && color !== normal ? color : "";
   }
 
   /** Width of the notes margin: a share of the text block, if notes show. */
@@ -543,6 +524,7 @@ export class Prompter {
     }
     this.updateTimer(dt);
     this.updatePauseHint(now);
+    this.expireHeard(now);
     this.draw();
   };
 
@@ -615,6 +597,19 @@ export class Prompter {
     this.countdownUntil = 0;
     this.countdownEl.hidden = true;
     this.playStart = now;
+  }
+
+  /** Heard words lose their colour after `heardHold` seconds (CSS fades). */
+  private expireHeard(now: number): void {
+    const hold = this.settings.heardHold * 1000;
+    while (this.heard.length && now - this.heard[0]!.at >= hold) {
+      this.wordEls[this.heard.shift()!.word]?.removeAttribute("data-heard");
+    }
+  }
+
+  private clearHeard(): void {
+    for (const { word } of this.heard) this.wordEls[word]?.removeAttribute("data-heard");
+    this.heard = [];
   }
 
   /** Voice mode: after a silence, light up the words to say next. */
@@ -719,6 +714,7 @@ export class Prompter {
     if (!this.voice) this.pause();
     this.current = i;
     const word = this.blockWord[i] ?? 0;
+    this.clearHeard();
     this.highlight(word - 1, false);
     this.voiceWord = -1;
     this.callbacks.onSeek?.(word);
@@ -870,6 +866,7 @@ export class Prompter {
     if (active) this.play();
     else {
       this.pause();
+      this.clearHeard();
       this.highlight(-1, false);
       this.voiceWord = -1;
     }
@@ -879,6 +876,15 @@ export class Prompter {
   /** The voice process says you're saying word `i`. */
   followWord(i: number): void {
     if (!this.voice || !this.playing || !this.wordEls[i]) return;
+    const at = this.win.performance.now();
+    if (i < this.marked) {
+      this.clearHeard(); // a retake: nothing stays coloured
+    } else if (this.settings.heardHold > 0) {
+      for (let w = Math.max(0, this.marked + 1); w <= i; w++) {
+        this.wordEls[w]?.setAttribute("data-heard", "");
+        this.heard.push({ word: w, at });
+      }
+    }
     this.highlight(i, true);
     this.voiceWord = i;
     this.lastHeardAt = this.win.performance.now();
@@ -913,10 +919,10 @@ export class Prompter {
     }
     this.stage.querySelector("[data-now]")?.removeAttribute("data-now");
     if (showNow) this.wordEls[now]?.setAttribute("data-now", "");
-    // The few words you are about to say. (A handful of elements: just
-    // clear and set them again.)
+    // Pause helper: the words to say next, shown only after a silence.
+    // (A handful of elements: just clear and set them again.)
     for (const el of this.stage.querySelectorAll("[data-next]")) el.removeAttribute("data-next");
-    if (this.voice) {
+    if (this.voice && this.settings.pauseHint > 0) {
       for (let w = now + 1; w <= now + this.settings.nextWords; w++) {
         this.wordEls[w]?.setAttribute("data-next", "");
       }

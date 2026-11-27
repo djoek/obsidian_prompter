@@ -135,8 +135,8 @@ change the speed for this session only.
 - `%% comments %%` and `<!-- comments -->` are **hidden**: use them for
   directions to yourself.
 - `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` are shown. Bold and
-  italic take your theme's colours if it gives them one (*Colours → Italic /
-  Bold* to pick your own; the ↺ button follows the theme again).
+  italic can have their own colour (*Colours → Italic / Bold*; ↺ makes them
+  the text colour again).
   Links show their text; embeds and images are left out; code blocks are skipped.
 - Edits to the note show up in the prompter while it is open, and it keeps
   your place.
@@ -283,9 +283,9 @@ speech recognition on Apple Silicon. Nothing leaves your Mac.
 3. Allow microphone access when macOS asks.
 4. Choose your **Microphone**, and open the prompter.
 
-While you speak, words already said fade, the current word is underlined,
-and the next few words (4 by default) get their own colour, so your eye
-knows where to go. Both are in the settings, under *Reading aids*.
+While you speak, the text ahead stays bright. Words Souffleur has heard take
+the *heard* colour for a moment (1.5 s by default), then fade to dimmed; the
+current word is underlined. Colour and time are under *Reading aids*.
 
 The status bar shows a level meter and the last words heard, so you can see
 that it works.

@@ -20,10 +20,11 @@ export interface PrompterSettings {
   headingColor: string;
   markColor: string;
   eyeLineColor: string;
-  nextColor: string;
+  nextColor: string; // pause helper
+  heardColor: string; // voice: words just heard, before they dim
   noteColor: string;
-  italicColor: string; // "" = your theme's, if it has one
-  boldColor: string; // "" = your theme's, if it has one
+  italicColor: string; // "" = same as the text
+  boldColor: string; // "" = same as the text
 
   // Reading aids
   eyeLine: number; // % from the top where you read
@@ -32,7 +33,8 @@ export interface PrompterSettings {
   showHud: boolean;
   /** Status bar: time in this section, and how long it normally takes. */
   showSectionTimer: boolean;
-  nextWords: number; // voice tracking: how many words after the current one stand out
+  nextWords: number; // pause helper: how many words to light up
+  heardHold: number; // voice: seconds heard words keep their colour; 0 = dim at once
   marginNotes: MarginSide; // where ^[notes] appear, as the reader sees it
   marginWidth: number; // % of the text width
   focusBand: number; // lines kept bright from the eye line down; 0 = off
@@ -91,7 +93,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   headingColor: "#ffd166",
   markColor: "#ffd166",
   eyeLineColor: "#ff4d4d",
-  nextColor: "#7ee8fa",
+  nextColor: "#9be7a0",
+  heardColor: "#7ee8fa",
   noteColor: "#c3a6ff",
   italicColor: "",
   boldColor: "",
@@ -102,6 +105,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   showHud: true,
   showSectionTimer: true,
   nextWords: 4,
+  heardHold: 1.5,
   marginNotes: "before",
   marginWidth: 25,
   focusBand: 0,
