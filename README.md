@@ -158,15 +158,17 @@ speed per block type, and the pause at each heading. A note's own `wpm` (in its
 frontmatter) counts.
 
 **After a take:** in voice mode, when you've read a section to its end,
-Souffleur writes how long it took into the note, at the end of that section:
+Souffleur notes how long it took, at the end of that section:
 
 ```markdown
-%% last run: 2:07 · 2026-11-28 14:03 %%
+%% run: 2:15 · 2026-11-28 14:03 %%
+%% run: 2:07 · 2026-11-28 14:20 %%
 ```
 
 It's timed from the first word heard to the last (starting over, or P, starts
-the clock again), and the next run replaces the line. Being a comment, it never
-shows in the prompter. Turn it off with *Pacing → Note the last run*.
+the clock again). *Pacing → Note the last runs* sets how many to keep per
+section (0–9, default 1), oldest first; the oldest drops off. Being comments,
+they never show in the prompter.
 
 **While writing:** the command **Show section lengths** opens a sidebar with
 every section of the note you're editing, its word count and its normal length,

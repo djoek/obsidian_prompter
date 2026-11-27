@@ -50,7 +50,7 @@ export interface PrompterSettings {
   headingPause: number; // seconds
   speakHeadings: boolean; // headings are read aloud (else they're labels)
   stopAtSection: boolean;
-  logRuns: boolean; // voice: write each section's last run time into the note
+  runsToKeep: number; // voice: how many run times to note per section; 0 = none
   countdown: number; // seconds of 3-2-1 before Play; 0 = none
   smoothStart: number; // seconds to ease up to speed after Play; 0 = instant
   keepAwake: boolean; // keep the screen on while playing or listening
@@ -119,7 +119,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   headingPause: 1,
   speakHeadings: false,
   stopAtSection: true,
-  logRuns: true,
+  runsToKeep: 1,
   countdown: 3,
   smoothStart: 1,
   keepAwake: true,
@@ -184,5 +184,10 @@ export function migrateSettings(data: unknown): Partial<PrompterSettings> {
       .replace(/djoek\/obsidian_prompter/g, "djoek/obsidian-souffleur");
   }
   if (out.voiceUrl === "ws://127.0.0.1:8765") out.voiceUrl = VOICE_URL;
+  // 0.13–0.15 had an on/off "Note the last run".
+  const old = data as { logRuns?: unknown };
+  if (typeof old.logRuns === "boolean" && out.runsToKeep === undefined) {
+    out.runsToKeep = old.logRuns ? 1 : 0;
+  }
   return out as Partial<PrompterSettings>;
 }

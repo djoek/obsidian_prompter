@@ -11,7 +11,7 @@ import type SouffleurPlugin from "./main";
 import { formatDuration } from "./pacing";
 import { blockAtLine, parseScript, type Script } from "./parser";
 import { Prompter } from "./prompter";
-import { setRunComment } from "./runlog";
+import { addRun } from "./runlog";
 import type { PrompterSettings } from "./settings";
 
 export const VIEW_TYPE = "souffleur";
@@ -152,11 +152,12 @@ export class PrompterView extends ItemView {
 
   /** Write the section's "last run" comment into the note. */
   private async noteRun(section: number, seconds: number): Promise<void> {
-    if (!this.settings().logRuns || !this.filePath) return;
+    const keep = this.settings().runsToKeep;
+    if (keep < 1 || !this.filePath) return;
     const file = this.app.vault.getAbstractFileByPath(this.filePath);
     if (!(file instanceof TFile)) return;
     const when = new Date();
-    await this.app.vault.process(file, (text) => setRunComment(text, section, seconds, when));
+    await this.app.vault.process(file, (text) => addRun(text, section, seconds, when, keep));
     this.prompter?.toast(`Section ${section + 1}: ${formatDuration(seconds)}`);
   }
 

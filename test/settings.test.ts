@@ -40,6 +40,12 @@ describe("migration from the old 'teleprompter' id", () => {
     expect(m).toEqual({ wpm: 150 });
   });
 
+  test("the old on/off 'Note the last run' becomes 1 or 0 runs", () => {
+    expect(migrateSettings({ logRuns: true }).runsToKeep).toBe(1);
+    expect(migrateSettings({ logRuns: false }).runsToKeep).toBe(0);
+    expect(migrateSettings({ logRuns: false, runsToKeep: 4 }).runsToKeep).toBe(4);
+  });
+
   test("the new defaults are already migrated", () => {
     expect(migrateSettings(DEFAULT_SETTINGS)).toEqual(DEFAULT_SETTINGS);
   });
