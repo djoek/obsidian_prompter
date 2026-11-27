@@ -579,6 +579,28 @@ class SouffleurSettingTab extends PluginSettingTab {
         .setName(name)
         .addColorPicker((c) => c.setValue(s[key]).onChange((v) => set({ [key]: v })));
 
+    // Emphasis follows the theme until you pick a colour; reset to follow again.
+    const themed = (name: string, key: "italicColor" | "boldColor") =>
+      new Setting(containerEl)
+        .setName(name)
+        .setDesc(s[key] ? "Your own colour." : "Follows your theme (or the text colour if the theme has none).")
+        .addColorPicker((c) =>
+          c.setValue(s[key] || s.textColor).onChange(async (v) => {
+            await this.plugin.updateSettings({ [key]: v });
+            this.display();
+          }),
+        )
+        .addExtraButton((b) =>
+          b
+            .setIcon("rotate-ccw")
+            .setTooltip("Follow the theme")
+            .setDisabled(!s[key])
+            .onClick(async () => {
+              await this.plugin.updateSettings({ [key]: "" });
+              this.display();
+            }),
+        );
+
     new Setting(containerEl).setName("Orientation").setHeading();
     new Setting(containerEl)
       .setName("Rotation")
@@ -646,6 +668,8 @@ class SouffleurSettingTab extends PluginSettingTab {
     color("Background", "backgroundColor");
     color("Headings and separators", "headingColor");
     color("==Highlight==", "markColor");
+    themed("*Italic*", "italicColor");
+    themed("**Bold**", "boldColor");
     color("Eye-line markers", "eyeLineColor");
 
     new Setting(containerEl).setName("Reading aids").setHeading();

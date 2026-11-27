@@ -5,7 +5,7 @@ tags: [video]
 
 Hallo, welkom bij deze video.^[glimlach, rustig beginnen] Vandaag vertel ik je **waarom** ik met een teleprompter werk, en hoe je er zelf ==meteen== mee aan de slag kan.
 
-Het grootste voordeel is rust.[^rust] Je hoeft niets van buiten te leren, en je kijkt toch recht in de lens.
+Het grootste voordeel is *rust*.[^rust] Je hoeft niets van buiten te leren, en je kijkt toch recht in de lens.
 
 %% regie: hier even pauzeren en glimlachen %%
 

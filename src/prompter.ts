@@ -317,6 +317,8 @@ export class Prompter {
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
     st.setProperty("--sf-note", s.noteColor);
+    st.setProperty("--sf-italic", s.italicColor || this.themeColor("em") || "inherit");
+    st.setProperty("--sf-bold", s.boldColor || this.themeColor("strong") || "inherit");
     st.setProperty("--sf-band-lines", String(s.focusBand));
     this.content.dataset.margin = this.notes.length ? s.marginNotes : "off";
     this.notesEl.hidden = s.marginNotes === "off";
@@ -419,6 +421,29 @@ export class Prompter {
 
   private lineHeightPx(): number {
     return (this.fontPx || this.settings.fontSize) * this.settings.lineHeight;
+  }
+
+  /**
+   * The colour your Obsidian theme gives <em> or <strong> in reading view:
+   * render a hidden sample and read its colour. Returns "" when the theme
+   * doesn't colour it (same as its normal text), so the prompter keeps its own
+   * text colour (a light theme's dark text would vanish on a black prompter).
+   */
+  private themeColor(tag: "em" | "strong"): string {
+    const body = this.doc.body;
+    const view = this.doc.createElement("div");
+    view.className = "markdown-rendered markdown-preview-view";
+    view.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
+    const p = this.doc.createElement("p");
+    const el = this.doc.createElement(tag);
+    el.textContent = "x";
+    p.append("x", el);
+    view.append(p);
+    body.append(view);
+    const color = this.win.getComputedStyle(el).color;
+    const normal = this.win.getComputedStyle(p).color;
+    view.remove();
+    return color && color !== normal ? color : "";
   }
 
   /** Width of the notes margin: a share of the text block, if notes show. */

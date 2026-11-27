@@ -69,7 +69,8 @@
     font-style: italic;
   }
 
-  & strong { font-weight: 800; }
+  & strong { font-weight: 800; color: var(--sf-bold, inherit); }
+  & em { color: var(--sf-italic, inherit); }
 
   & mark {
     background: var(--sf-mark);

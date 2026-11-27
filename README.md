@@ -134,7 +134,9 @@ change the speed for this session only.
   `souffleur: { speakHeadings: true }`.
 - `%% comments %%` and `<!-- comments -->` are **hidden**: use them for
   directions to yourself.
-- `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` are shown.
+- `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` are shown. Bold and
+  italic take your theme's colours if it gives them one (*Colours → Italic /
+  Bold* to pick your own; the ↺ button follows the theme again).
   Links show their text; embeds and images are left out; code blocks are skipped.
 - Edits to the note show up in the prompter while it is open, and it keeps
   your place.

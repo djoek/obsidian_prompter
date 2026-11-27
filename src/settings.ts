@@ -22,6 +22,8 @@ export interface PrompterSettings {
   eyeLineColor: string;
   nextColor: string;
   noteColor: string;
+  italicColor: string; // "" = your theme's, if it has one
+  boldColor: string; // "" = your theme's, if it has one
 
   // Reading aids
   eyeLine: number; // % from the top where you read
@@ -91,6 +93,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   eyeLineColor: "#ff4d4d",
   nextColor: "#7ee8fa",
   noteColor: "#c3a6ff",
+  italicColor: "",
+  boldColor: "",
 
   eyeLine: 30,
   showEyeLine: true,
