@@ -1,4 +1,4 @@
-# prompter-voice
+# souffleur-voice
 
 A small local process that listens to your microphone and tells the
 teleprompter which word of the script you are saying. Nothing leaves your Mac.
@@ -13,11 +13,11 @@ Requires an Apple Silicon Mac and [uv](https://docs.astral.sh/uv/).
 
 ## Run it
 
-The plugin can start it for you (Settings → Teleprompter → Voice tracking).
+The plugin can start it for you (Settings → Souffleur → Voice tracking).
 The default start command is:
 
 ```bash
-uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" prompter-voice serve
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve
 ```
 
 `uvx` installs it into a cached, isolated environment; nothing to clone.
@@ -27,7 +27,7 @@ To see the log, run it in a terminal instead, and clear the start command in
 the plugin settings:
 
 ```bash
-uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" prompter-voice serve --device "MacBook Pro Microphone"
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve --device "MacBook Pro Microphone"
 ```
 
 macOS asks for microphone permission the first time, for whichever app
@@ -37,9 +37,9 @@ started the process: Obsidian, or your terminal.
 
 | Command | What it does |
 |---|---|
-| `prompter-voice serve [--device NAME] [--port 8765]` | Listen and serve the prompter (default) |
-| `prompter-voice devices` | List microphones; `*` marks the default |
-| `prompter-voice bench recording.wav script.md` | Run a recording through the pipeline; prints speed and positions |
+| `souffleur-voice serve [--device NAME] [--port 8791]` | Listen and serve the prompter (default) |
+| `souffleur-voice devices` | List microphones; `*` marks the default |
+| `souffleur-voice bench recording.wav script.md` | Run a recording through the pipeline; prints speed and positions |
 
 `--device` takes the full name or a part of it. The plugin's microphone
 setting overrides it.
@@ -77,7 +77,7 @@ Record yourself reading part of a script (QuickTime → New Audio Recording,
 then export, or any 16-bit WAV), and run:
 
 ```bash
-uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" prompter-voice bench take.wav script.md
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice bench take.wav script.md
 ```
 
 It prints each position change with its time in the recording, then:
@@ -89,8 +89,8 @@ It prints each position change with its time in the recording, then:
 
 ## Protocol
 
-JSON over WebSocket on `ws://127.0.0.1:8765`. See the docstring at the top of
-`src/prompter_voice/server.py`.
+JSON over WebSocket on `ws://127.0.0.1:8791`. See the docstring at the top of
+`src/souffleur_voice/server.py`.
 
 ## Development
 

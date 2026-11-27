@@ -1,46 +1,46 @@
-/* Teleprompter. Every value comes from --tp-* custom properties, set by the
+/* Souffleur. Every value comes from --sf-* custom properties, set by the
    engine from the plugin settings. Inside the content we style plain
    semantic elements; only the containers carry a class. */
 
-.workspace-leaf-content[data-type="teleprompter"] > .view-content {
+.workspace-leaf-content[data-type="souffleur"] > .view-content {
   padding: 0;
   overflow: hidden;
 }
 
-.tp-stage {
+.sf-stage {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--tp-bg);
-  color: var(--tp-fg);
+  background: var(--sf-bg);
+  color: var(--sf-fg);
   cursor: none;
   user-select: none;
 }
 
-.tp-stage:fullscreen {
+.sf-stage:fullscreen {
   width: 100vw;
   height: 100vh;
 }
 
-.tp-rotor {
+.sf-rotor {
   position: absolute;
   left: 50%;
   top: 50%;
   overflow: hidden;
 }
 
-.tp-content {
+.sf-content {
   position: relative;
-  width: var(--tp-width);
+  width: var(--sf-width);
   margin: 0 auto;
   padding-bottom: 100vh;
-  font-family: var(--tp-font);
-  font-size: var(--tp-size);
-  line-height: var(--tp-line);
-  letter-spacing: var(--tp-letter, 0);
-  word-spacing: var(--tp-word, 0);
-  text-align: var(--tp-align);
+  font-family: var(--sf-font);
+  font-size: var(--sf-size);
+  line-height: var(--sf-line);
+  letter-spacing: var(--sf-letter, 0);
+  word-spacing: var(--sf-word, 0);
+  text-align: var(--sf-align);
   will-change: transform;
 
   & :is(h1, h2, h3, h4, h5, h6, p, li, blockquote) {
@@ -49,7 +49,7 @@
   }
 
   & :is(h1, h2, h3, h4, h5, h6) {
-    color: var(--tp-heading);
+    color: var(--sf-heading);
     font-size: 1em;
     font-weight: 700;
   }
@@ -64,15 +64,15 @@
 
   & blockquote {
     padding-left: 0.6em;
-    border-left: 0.12em solid var(--tp-heading);
+    border-left: 0.12em solid var(--sf-heading);
     font-style: italic;
   }
 
   & strong { font-weight: 800; }
 
   & mark {
-    background: var(--tp-mark);
-    color: var(--tp-bg);
+    background: var(--sf-mark);
+    color: var(--sf-bg);
     padding: 0 0.1em;
     border-radius: 0.1em;
   }
@@ -81,7 +81,7 @@
 
   & hr {
     border: none;
-    border-top: 0.08em dashed var(--tp-heading);
+    border-top: 0.08em dashed var(--sf-heading);
     margin: 1.5em 0 0.4em;
     opacity: 0.6;
   }
@@ -97,51 +97,51 @@
   }
 }
 
-.tp-stage[data-dim-read] .tp-content [data-read] {
+.sf-stage[data-dim-read] .sf-content [data-read] {
   opacity: 0.3;
 }
 
-.tp-eyeline {
+.sf-eyeline {
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--tp-eye-pos);
+  top: var(--sf-eye-pos);
   pointer-events: none;
 
   &::before,
   &::after {
     content: "";
     position: absolute;
-    top: calc(var(--tp-size) * -0.35);
-    border: calc(var(--tp-size) * 0.35) solid transparent;
+    top: calc(var(--sf-size) * -0.35);
+    border: calc(var(--sf-size) * 0.35) solid transparent;
   }
-  &::before { left: 0; border-left-color: var(--tp-eye); }
-  &::after { right: 0; border-right-color: var(--tp-eye); }
+  &::before { left: 0; border-left-color: var(--sf-eye); }
+  &::after { right: 0; border-right-color: var(--sf-eye); }
 }
 
-.tp-hud {
+.sf-hud {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   padding: 0.4em 1em;
   font: 600 14px/1.4 system-ui, sans-serif;
-  color: var(--tp-fg);
-  background: color-mix(in srgb, var(--tp-bg) 80%, transparent);
+  color: var(--sf-fg);
+  background: color-mix(in srgb, var(--sf-bg) 80%, transparent);
   opacity: 0.6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.tp-toast {
+.sf-toast {
   position: absolute;
   top: 1em;
   right: 1em;
   padding: 0.3em 0.8em;
   font: 700 24px/1.4 system-ui, sans-serif;
-  color: var(--tp-bg);
-  background: var(--tp-fg);
+  color: var(--sf-bg);
+  background: var(--sf-fg);
   border-radius: 0.3em;
   opacity: 0;
   transition: opacity 0.3s;
@@ -149,32 +149,32 @@
   &[data-show] { opacity: 0.9; }
 }
 
-[hidden].tp-eyeline,
-[hidden].tp-hud {
+[hidden].sf-eyeline,
+[hidden].sf-hud {
   display: none;
 }
 
 /* Voice mode: words already said fade, the current word is underlined. */
-.tp-stage[data-voice] .tp-content {
+.sf-stage[data-voice] .sf-content {
   & [data-said] { opacity: 0.45; }
   & [data-now] {
-    text-decoration: underline var(--tp-eye) 0.08em;
+    text-decoration: underline var(--sf-eye) 0.08em;
     text-underline-offset: 0.15em;
   }
   /* Colour only: bold would make words wider, re-wrap the line and make
      the text jump under your eyes. */
-  & [data-next] { color: var(--tp-next); }
+  & [data-next] { color: var(--sf-next); }
   & span { transition: color 0.25s, opacity 0.25s; }
 }
 
 /* Settings: model download bar */
-progress.tp-download {
+progress.sf-download {
   width: 12em;
   accent-color: var(--interactive-accent);
 }
 
 /* Diagnostics overlay (D key) */
-.tp-diag {
+.sf-diag {
   position: absolute;
   top: 1em;
   left: 1em;
@@ -185,4 +185,4 @@ progress.tp-download {
   background: rgb(0 0 0 / 0.8);
   border-radius: 0.3em;
 }
-[hidden].tp-diag { display: none; }
+[hidden].sf-diag { display: none; }

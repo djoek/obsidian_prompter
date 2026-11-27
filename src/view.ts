@@ -7,12 +7,12 @@ import {
   type WorkspaceLeaf,
 } from "obsidian";
 import { noteOverrides, type NoteOverrides } from "./frontmatter";
-import type TeleprompterPlugin from "./main";
+import type SouffleurPlugin from "./main";
 import { blockAtLine, parseScript, type Script } from "./parser";
 import { Prompter } from "./prompter";
 import type { PrompterSettings } from "./settings";
 
-export const VIEW_TYPE = "teleprompter";
+export const VIEW_TYPE = "souffleur";
 
 interface State {
   file?: string;
@@ -29,7 +29,7 @@ export class PrompterView extends ItemView {
 
   constructor(
     leaf: WorkspaceLeaf,
-    private plugin: TeleprompterPlugin,
+    private plugin: SouffleurPlugin,
   ) {
     super(leaf);
   }
@@ -40,7 +40,7 @@ export class PrompterView extends ItemView {
 
   getDisplayText(): string {
     const name = this.filePath?.split("/").pop()?.replace(/\.md$/, "");
-    return name ? `Prompter: ${name}` : "Teleprompter";
+    return name ? `Souffleur: ${name}` : "Souffleur";
   }
 
   getIcon(): string {
@@ -145,7 +145,7 @@ export class PrompterView extends ItemView {
   private reportProblems(): void {
     const text = this.overrides.problems.join("\n");
     if (text && text !== this.shownProblems) {
-      new Notice(`Teleprompter ignored some frontmatter:\n${text}`, 10_000);
+      new Notice(`Souffleur ignored some frontmatter:\n${text}`, 10_000);
     }
     this.shownProblems = text;
   }

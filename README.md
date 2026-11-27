@@ -1,6 +1,11 @@
-# Teleprompter for Obsidian
+# Souffleur
 
-A teleprompter that reads a note straight from your vault and shows it in a
+*A prompter teleprompter that follows your voice.*
+
+In the theatre, the souffleur sits out of sight and follows the actors through
+the script, ready with the next line. This Obsidian plugin does the same for
+video: 
+it reads a note straight from your vault and shows it in a
 separate window, which you drag to the prompter display (for example an Elgato
 Prompter over DisplayLink) and make fullscreen.
 
@@ -11,7 +16,7 @@ Prompter over DisplayLink) and make fullscreen.
 1. Install the community plugin **BRAT** (Obsidian42 - BRAT) and enable it.
 2. Command palette → **BRAT: Add a beta plugin for testing**.
 3. Paste `https://github.com/djoek/obsidian_prompter` and confirm.
-4. Enable **Teleprompter** under *Settings → Community plugins*.
+4. Enable **Souffleur** under *Settings → Community plugins*.
 
 BRAT downloads `main.js`, `manifest.json` and `styles.css` from the latest
 GitHub release, and checks for updates.
@@ -20,18 +25,32 @@ GitHub release, and checks for updates.
 
 ```bash
 cd "<your vault>/.obsidian/plugins"
-git clone https://github.com/djoek/obsidian_prompter teleprompter
-cd teleprompter
+git clone https://github.com/djoek/obsidian_prompter souffleur
+cd souffleur
 bun install
 bun run build
 ```
 
-Then enable **Teleprompter** under *Settings → Community plugins*.
+Then enable **Souffleur** under *Settings → Community plugins*.
+
+### Upgrading from "Teleprompter" (0.4.0 and earlier)
+
+This plugin used to be called Teleprompter, with the id `teleprompter`. That id
+belongs to another plugin, so it is now **Souffleur** (`souffleur`), and Obsidian
+treats it as a new plugin:
+
+1. Install Souffleur (BRAT or from source, as above) and enable it. On its first
+   start it copies your settings from the old plugin and says so.
+2. Disable and remove the old **Teleprompter** plugin.
+3. If you set a custom voice start command or address: the voice process is now
+   `souffleur-voice`, on port 8791. Default values are updated for you.
+4. In notes, the settings block is now `souffleur:` instead of `teleprompter:`.
+   A top-level `language:` is unchanged.
 
 ## Use
 
 1. Open your script note.
-2. Command palette → **Teleprompter: Open teleprompter for current note**
+2. Command palette → **Souffleur: Open teleprompter for current note**
    (or **…at cursor** to start at the paragraph your cursor is in).
 3. A new window opens. Drag it to the prompter display, click in it, press **F**.
 
@@ -67,7 +86,7 @@ A note can override any setting in its frontmatter. All of it is optional.
 ```yaml
 ---
 language: nl          # or lang: — a code (nl, nl-BE) or a name (Nederlands)
-teleprompter:
+souffleur:
   fontSize: 64
   wpm: 150
   flipH: true
@@ -75,7 +94,7 @@ teleprompter:
 ---
 ```
 
-The keys under `teleprompter:` are the setting names from `src/settings.ts`
+The keys under `souffleur:` are the setting names from `src/settings.ts`
 (for example `fontFamily`, `lineHeight`, `eyeLine`, `headingPause`,
 `stopAtSection`, `rotation`). Wrong names or values are ignored and listed in
 a notice. Voice-process settings (command, address, microphone) are
@@ -121,7 +140,7 @@ your user font folder:
 for f in Regular Bold Italic BoldItalic; do curl -fL -o ~/Library/Fonts/OpenDyslexic-$f.otf "https://github.com/antijingoist/opendyslexic/raw/main/compiled/OpenDyslexic-$f.otf"; done
 ```
 
-Then reopen the Teleprompter settings so the new font is found.
+Then reopen the Souffleur settings so the new font is found.
 
 **Letter spacing** and **word spacing** are separate settings; extra spacing
 is worth trying with any font.
@@ -172,7 +191,7 @@ It needs a small local process (in `voice/`), which uses Parakeet v3 for
 speech recognition on Apple Silicon. Nothing leaves your Mac.
 
 1. Install [uv](https://docs.astral.sh/uv/) if you don't have it.
-2. *Settings → Teleprompter → Voice tracking*: turn on **Enable voice tracking**.
+2. *Settings → Souffleur → Voice tracking*: turn on **Enable voice tracking**.
    The plugin starts the process with the **Start command** (it is filled in
    for you). The first start downloads the model, about 2.5 GB. The
    **Speech model** row in the settings shows a progress bar, and the

@@ -29,12 +29,12 @@ describe("noteOverrides", () => {
   test("top-level language and lang", () => {
     expect(noteOverrides({ language: "nl" }).language).toBe("nl");
     expect(noteOverrides({ lang: "English" }).language).toBe("en");
-    expect(noteOverrides({ teleprompter: { language: "de" } }).language).toBe("de");
+    expect(noteOverrides({ souffleur: { language: "de" } }).language).toBe("de");
   });
 
   test("valid settings are applied", () => {
     const o = noteOverrides({
-      teleprompter: { fontSize: 64, flipH: true, rotation: 180, textAlign: "center" },
+      souffleur: { fontSize: 64, flipH: true, rotation: 180, textAlign: "center" },
     });
     expect(o.settings).toEqual({ fontSize: 64, flipH: true, rotation: 180, textAlign: "center" });
     expect(o.problems).toEqual([]);
@@ -43,7 +43,7 @@ describe("noteOverrides", () => {
   test("wrong values are skipped and reported, never applied", () => {
     const o = noteOverrides({
       language: "Klingon",
-      teleprompter: {
+      souffleur: {
         fontSize: "big",
         rotation: 45,
         colour: "red",
@@ -56,7 +56,7 @@ describe("noteOverrides", () => {
     expect(o.problems).toHaveLength(5);
   });
 
-  test("a teleprompter: that isn't a block is reported", () => {
-    expect(noteOverrides({ teleprompter: "yes" }).problems).toHaveLength(1);
+  test("a souffleur: that isn't a block is reported", () => {
+    expect(noteOverrides({ souffleur: "yes" }).problems).toHaveLength(1);
   });
 });

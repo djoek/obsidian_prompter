@@ -89,18 +89,18 @@ export class Prompter {
     // with its own animation clock.
     this.win = this.doc.defaultView ?? window;
 
-    this.stage = this.el("div", "tp-stage", host);
-    this.rotor = this.el("div", "tp-rotor", this.stage);
-    this.content = this.el("article", "tp-content", this.rotor);
-    this.eye = this.el("div", "tp-eyeline", this.rotor);
-    this.hud = this.el("footer", "tp-hud", this.rotor);
-    this.toastEl = this.el("output", "tp-toast", this.rotor);
+    this.stage = this.el("div", "sf-stage", host);
+    this.rotor = this.el("div", "sf-rotor", this.stage);
+    this.content = this.el("article", "sf-content", this.rotor);
+    this.eye = this.el("div", "sf-eyeline", this.rotor);
+    this.hud = this.el("footer", "sf-hud", this.rotor);
+    this.toastEl = this.el("output", "sf-toast", this.rotor);
 
     this.stage.addEventListener("wheel", this.onWheel, { passive: false });
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(this.stage);
 
-    this.diagEl = this.el("pre", "tp-diag", this.rotor);
+    this.diagEl = this.el("pre", "sf-diag", this.rotor);
     this.diagEl.hidden = true;
     this.applySettings(settings);
     this.schedule();
@@ -243,20 +243,20 @@ export class Prompter {
   applySettings(s: PrompterSettings): void {
     this.settings = s;
     const st = this.stage.style;
-    st.setProperty("--tp-font", s.fontFamily);
-    st.setProperty("--tp-size", `${s.fontSize}px`);
-    st.setProperty("--tp-line", String(s.lineHeight));
-    st.setProperty("--tp-letter", `${s.letterSpacing}em`);
-    st.setProperty("--tp-word", `${s.wordSpacing}em`);
-    st.setProperty("--tp-width", `${s.textWidth}%`);
-    st.setProperty("--tp-align", s.textAlign);
-    st.setProperty("--tp-fg", s.textColor);
-    st.setProperty("--tp-bg", s.backgroundColor);
-    st.setProperty("--tp-heading", s.headingColor);
-    st.setProperty("--tp-mark", s.markColor);
-    st.setProperty("--tp-eye", s.eyeLineColor);
-    st.setProperty("--tp-next", s.nextColor);
-    st.setProperty("--tp-eye-pos", `${s.eyeLine}%`);
+    st.setProperty("--sf-font", s.fontFamily);
+    st.setProperty("--sf-size", `${s.fontSize}px`);
+    st.setProperty("--sf-line", String(s.lineHeight));
+    st.setProperty("--sf-letter", `${s.letterSpacing}em`);
+    st.setProperty("--sf-word", `${s.wordSpacing}em`);
+    st.setProperty("--sf-width", `${s.textWidth}%`);
+    st.setProperty("--sf-align", s.textAlign);
+    st.setProperty("--sf-fg", s.textColor);
+    st.setProperty("--sf-bg", s.backgroundColor);
+    st.setProperty("--sf-heading", s.headingColor);
+    st.setProperty("--sf-mark", s.markColor);
+    st.setProperty("--sf-eye", s.eyeLineColor);
+    st.setProperty("--sf-next", s.nextColor);
+    st.setProperty("--sf-eye-pos", `${s.eyeLine}%`);
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);

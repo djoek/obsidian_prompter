@@ -5,7 +5,7 @@ import json
 
 import numpy as np
 
-from prompter_voice.server import VoiceServer
+from souffleur_voice.server import VoiceServer
 
 WORDS = ["Hallo", "welkom", "bij", "deze", "video", "vandaag", "vertel", "ik", "je", "waarom"]
 
@@ -48,7 +48,7 @@ class FakeClient:
 
 
 def test_listen_sends_positions(monkeypatch):
-    monkeypatch.setattr("prompter_voice.server.TICK", 0.001)
+    monkeypatch.setattr("souffleur_voice.server.TICK", 0.001)
 
     async def scenario() -> list[dict]:
         rec = FakeRecognizer()
@@ -75,7 +75,7 @@ def test_listen_sends_positions(monkeypatch):
 
 
 def test_startup_reports_download_progress(monkeypatch):
-    monkeypatch.setattr("prompter_voice.server.VoiceServer.open_mic", lambda self, name: None)
+    monkeypatch.setattr("souffleur_voice.server.VoiceServer.open_mic", lambda self, name: None)
 
     def prepare(model_id, on_progress):
         for done in range(0, 1001, 100):

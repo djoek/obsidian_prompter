@@ -29,7 +29,7 @@ from functools import lru_cache
 
 from rapidfuzz.fuzz import ratio
 
-from prompter_voice.normalize import normalize
+from souffleur_voice.normalize import normalize
 
 GAP = -1.0
 MISMATCH = -1.0

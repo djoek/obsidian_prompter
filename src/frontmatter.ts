@@ -2,7 +2,7 @@
 //
 //   ---
 //   language: nl            # or lang:, a code (nl, nl-BE) or a name (Nederlands)
-//   teleprompter:           # optional; any setting, by its name
+//   souffleur:              # optional; any setting, by its name
 //     fontSize: 64
 //     wpm: 150
 //     flipH: true
@@ -68,9 +68,9 @@ export function noteOverrides(frontmatter: unknown): NoteOverrides {
   if (!frontmatter || typeof frontmatter !== "object") return result;
   const fm = frontmatter as Record<string, unknown>;
 
-  const block = fm.teleprompter;
+  const block = fm.souffleur;
   if (block !== undefined && (typeof block !== "object" || block === null || Array.isArray(block))) {
-    result.problems.push("teleprompter: should be a block of settings");
+    result.problems.push("souffleur: should be a block of settings");
   }
   const entries = block && typeof block === "object" ? Object.entries(block) : [];
 
@@ -87,22 +87,22 @@ export function noteOverrides(frontmatter: unknown): NoteOverrides {
   for (const [key, value] of entries) {
     if (key === "language") continue;
     if (!(key in DEFAULT_SETTINGS)) {
-      result.problems.push(`teleprompter.${key}: no such setting`);
+      result.problems.push(`souffleur.${key}: no such setting`);
       continue;
     }
     const k = key as keyof PrompterSettings;
     if (NOT_PER_NOTE.has(k)) {
-      result.problems.push(`teleprompter.${key}: can only be set in the plugin settings`);
+      result.problems.push(`souffleur.${key}: can only be set in the plugin settings`);
       continue;
     }
     const expected = typeof DEFAULT_SETTINGS[k];
     if (typeof value !== expected) {
-      result.problems.push(`teleprompter.${key}: should be a ${expected}`);
+      result.problems.push(`souffleur.${key}: should be a ${expected}`);
       continue;
     }
     const choices = CHOICES[k];
     if (choices && !choices.includes(value)) {
-      result.problems.push(`teleprompter.${key}: should be one of ${choices.join(", ")}`);
+      result.problems.push(`souffleur.${key}: should be one of ${choices.join(", ")}`);
       continue;
     }
     settings[key] = value;

@@ -4,17 +4,20 @@ import contextlib
 import logging
 from pathlib import Path
 
-from prompter_voice.asr import PARAKEET as DEFAULT_MODEL
+from souffleur_voice.asr import PARAKEET as DEFAULT_MODEL
+
+# 8765 is taken by the Teleprompter Plus plugin.
+DEFAULT_PORT = 8791
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(prog="prompter-voice", description=__doc__)
+    p = argparse.ArgumentParser(prog="souffleur-voice", description=__doc__)
     sub = p.add_subparsers(dest="cmd")
 
     serve = sub.add_parser("serve", help="listen and serve the prompter (default)")
     serve.add_argument("--device", help="microphone name (or part of it); default: system")
     serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--port", type=int, default=DEFAULT_PORT)
 
     sub.add_parser("devices", help="list microphones")
 
@@ -45,21 +48,21 @@ def main() -> None:
 
     match args.cmd:
         case "devices":
-            from prompter_voice.audio import input_devices
+            from souffleur_voice.audio import input_devices
 
             for d in input_devices():
                 print(("* " if d.default else "  ") + d.name)
         case "bench":
-            from prompter_voice.asr import make_recognizer
-            from prompter_voice.bench import bench, read_wav, script_words
+            from souffleur_voice.asr import make_recognizer
+            from souffleur_voice.bench import bench, read_wav, script_words
 
             recognizer = make_recognizer(args.model, portable=args.portable)
             words = script_words(args.script.read_text(encoding="utf-8"))
             bench(recognizer, read_wav(args.audio), words)
         case _:
-            from prompter_voice.asr import make_recognizer
-            from prompter_voice.download import download
-            from prompter_voice.server import VoiceServer, serve_forever
+            from souffleur_voice.asr import make_recognizer
+            from souffleur_voice.download import download
+            from souffleur_voice.server import VoiceServer, serve_forever
 
             portable = getattr(args, "portable", False)
             server = VoiceServer(
@@ -72,7 +75,9 @@ def main() -> None:
             with contextlib.suppress(KeyboardInterrupt):
                 asyncio.run(
                     serve_forever(
-                        server, getattr(args, "host", "127.0.0.1"), getattr(args, "port", 8765)
+                        server,
+                        getattr(args, "host", "127.0.0.1"),
+                        getattr(args, "port", DEFAULT_PORT),
                     )
                 )
 

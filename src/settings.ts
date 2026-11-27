@@ -50,7 +50,8 @@ export interface PrompterSettings {
 }
 
 export const VOICE_COMMAND =
-  'uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" prompter-voice serve';
+  'uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve';
+export const VOICE_URL = "ws://127.0.0.1:8791";
 
 export const DEFAULT_SETTINGS: PrompterSettings = {
   fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
@@ -88,7 +89,52 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
 
   voiceEnabled: false,
   language: "",
-  voiceUrl: "ws://127.0.0.1:8765",
+  voiceUrl: VOICE_URL,
   voiceDevice: "",
   voiceCommand: VOICE_COMMAND,
 };
+
+// ── Migration from the plugin's earlier name ──────────────────────────────
+//
+// Up to 0.4.0 this plugin was called "teleprompter". That id belongs to
+// another plugin (by lumetrium), whose settings may sit in the same folder, so
+// only data that is recognisably ours is imported.
+
+/** Settings only this plugin has. */
+const OURS = [
+  "headingSpeed",
+  "paragraphSpeed",
+  "listSpeed",
+  "quoteSpeed",
+  "headingPause",
+  "stopAtSection",
+  "eyeLine",
+  "voiceEnabled",
+  "voiceCommand",
+] as const;
+
+/** True if `data` looks like this plugin's settings (≥ 3 of our own keys). */
+export function looksLikeOurs(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  return OURS.filter((k) => k in data).length >= 3;
+}
+
+/**
+ * Keep known settings with the right type, and update values that changed
+ * with the rename: the voice process is now `souffleur-voice`, on port 8791.
+ */
+export function migrateSettings(data: unknown): Partial<PrompterSettings> {
+  if (!data || typeof data !== "object") return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (key in DEFAULT_SETTINGS) {
+      const expected = typeof DEFAULT_SETTINGS[key as keyof PrompterSettings];
+      if (typeof value === expected) out[key] = value;
+    }
+  }
+  if (typeof out.voiceCommand === "string") {
+    out.voiceCommand = out.voiceCommand.replace(/prompter-voice/g, "souffleur-voice");
+  }
+  if (out.voiceUrl === "ws://127.0.0.1:8765") out.voiceUrl = VOICE_URL;
+  return out as Partial<PrompterSettings>;
+}

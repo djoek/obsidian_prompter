@@ -10,7 +10,7 @@ from typing import Protocol
 import numpy as np
 
 SAMPLE_RATE = 16_000
-log = logging.getLogger("prompter_voice")
+log = logging.getLogger("souffleur_voice")
 
 PARAKEET = "mlx-community/parakeet-tdt-0.6b-v3"
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import sounddevice as sd
 
-from prompter_voice.asr import resample
+from souffleur_voice.asr import resample
 
 
 @dataclass

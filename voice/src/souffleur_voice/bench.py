@@ -11,9 +11,9 @@ from pathlib import Path
 
 import numpy as np
 
-from prompter_voice.aligner import Aligner
-from prompter_voice.asr import SAMPLE_RATE, Recognizer, resample
-from prompter_voice.normalize import normalize_text
+from souffleur_voice.aligner import Aligner
+from souffleur_voice.asr import SAMPLE_RATE, Recognizer, resample
+from souffleur_voice.normalize import normalize_text
 
 
 def script_words(markdown: str) -> list[str]:

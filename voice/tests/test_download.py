@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from prompter_voice import download as dl
+from souffleur_voice import download as dl
 
 
 def test_progress_is_one_rising_bar(monkeypatch):

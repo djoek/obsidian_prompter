@@ -33,14 +33,14 @@ import numpy as np
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
 
-from prompter_voice.aligner import Aligner
-from prompter_voice.asr import Recognizer
+from souffleur_voice.aligner import Aligner
+from souffleur_voice.asr import Recognizer
 
 if TYPE_CHECKING:
-    from prompter_voice.audio import Microphone
-from prompter_voice.normalize import normalize_text
+    from souffleur_voice.audio import Microphone
+from souffleur_voice.normalize import normalize_text
 
-log = logging.getLogger("prompter_voice")
+log = logging.getLogger("souffleur_voice")
 TICK = 0.25  # seconds between recognition steps
 
 
@@ -106,7 +106,7 @@ class VoiceServer:
         )
 
     def open_mic(self, name: str | None) -> None:
-        from prompter_voice.audio import Microphone  # loads PortAudio
+        from souffleur_voice.audio import Microphone  # loads PortAudio
 
         if self.mic:
             self.mic.close()
@@ -256,7 +256,7 @@ class VoiceServer:
                 log.info("Reset requested: restarting recognition")
                 await self.reset_recognizer()
             case "devices":
-                from prompter_voice.audio import input_devices
+                from souffleur_voice.audio import input_devices
 
                 await self.send(
                     type="devices",

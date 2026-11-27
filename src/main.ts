@@ -3,6 +3,8 @@ import { MarkdownView, Notice, Plugin, PluginSettingTab, Setting, type App } fro
 import {
   DEFAULT_SETTINGS,
   VOICE_COMMAND,
+  looksLikeOurs,
+  migrateSettings,
   type PrompterSettings,
   type Rotation,
 } from "./settings";
@@ -10,7 +12,7 @@ import { PrompterView, VIEW_TYPE } from "./view";
 import { firstFamily, fontStack, installedFonts } from "./fonts";
 import { VoiceClient, type VoiceState } from "./voice";
 
-export default class TeleprompterPlugin extends Plugin {
+export default class SouffleurPlugin extends Plugin {
   settings: PrompterSettings = { ...DEFAULT_SETTINGS };
   voice: VoiceClient | null = null;
   private proc: ChildProcess | null = null;
@@ -22,9 +24,9 @@ export default class TeleprompterPlugin extends Plugin {
   voiceListeners = new Set<() => void>();
 
   async onload(): Promise<void> {
-    this.settings = { ...DEFAULT_SETTINGS, ...(await this.loadData()) };
+    this.settings = { ...DEFAULT_SETTINGS, ...migrateSettings(await this.loadSettingsData()) };
     this.registerView(VIEW_TYPE, (leaf) => new PrompterView(leaf, this));
-    this.addSettingTab(new TeleprompterSettingTab(this.app, this));
+    this.addSettingTab(new SouffleurSettingTab(this.app, this));
 
     this.addCommand({
       id: "open",
@@ -72,6 +74,31 @@ export default class TeleprompterPlugin extends Plugin {
     });
 
     this.app.workspace.onLayoutReady(() => this.applyVoice());
+  }
+
+  /**
+   * Our saved data, or on the very first start, the settings of this plugin's
+   * earlier version (id "teleprompter"), copied over once.
+   */
+  private async loadSettingsData(): Promise<unknown> {
+    const data: unknown = await this.loadData();
+    if (data) return data;
+    const old = `${this.app.vault.configDir}/plugins/teleprompter/data.json`;
+    try {
+      if (!(await this.app.vault.adapter.exists(old))) return null;
+      const oldData: unknown = JSON.parse(await this.app.vault.adapter.read(old));
+      if (!looksLikeOurs(oldData)) return null; // e.g. lumetrium's Teleprompter
+      await this.saveData(migrateSettings(oldData));
+      new Notice(
+        "Souffleur copied your settings from its earlier version (Teleprompter). " +
+          "You can disable and remove that plugin now.",
+        15_000,
+      );
+      return oldData;
+    } catch (e) {
+      console.warn("[souffleur] Could not import old settings", e);
+      return null;
+    }
   }
 
   onunload(): void {
@@ -156,7 +183,7 @@ export default class TeleprompterPlugin extends Plugin {
     const log = (chunk: Buffer) => {
       const text = chunk.toString();
       tail = (tail + text).slice(-500);
-      console.log(`[teleprompter voice] ${text.trimEnd()}`);
+      console.log(`[souffleur voice] ${text.trimEnd()}`);
     };
     proc.stdout?.on("data", log);
     proc.stderr?.on("data", log);
@@ -244,7 +271,7 @@ export function formatProgress(done: number, total: number): string {
   return `${pct}% · ${gb(done)} of ${gb(total)} GB`;
 }
 
-class TeleprompterSettingTab extends PluginSettingTab {
+class SouffleurSettingTab extends PluginSettingTab {
   private unsubscribe: (() => void) | null = null;
 
   hide(): void {
@@ -254,7 +281,7 @@ class TeleprompterSettingTab extends PluginSettingTab {
 
   constructor(
     app: App,
-    private plugin: TeleprompterPlugin,
+    private plugin: SouffleurPlugin,
   ) {
     super(app, plugin);
   }
@@ -416,7 +443,7 @@ class TeleprompterSettingTab extends PluginSettingTab {
       );
     // Model download: a <progress> bar that updates while this tab is open.
     const model = new Setting(containerEl).setName("Speech model");
-    const bar = model.controlEl.createEl("progress", { cls: "tp-download" });
+    const bar = model.controlEl.createEl("progress", { cls: "sf-download" });
     bar.max = 1;
     const showModel = () => {
       const v = this.plugin.voice;

@@ -1,5 +1,5 @@
-from prompter_voice.aligner import Aligner
-from prompter_voice.normalize import normalize, normalize_text
+from souffleur_voice.aligner import Aligner
+from souffleur_voice.normalize import normalize, normalize_text
 
 SCRIPT = [
     "Hallo,",
