@@ -33,6 +33,8 @@ export default class SouffleurPlugin extends Plugin {
   voiceDetail = "";
   private level = 0;
   private heard = "";
+  /** False while the prompter is paused: the voice process then rests. */
+  private listening = true;
   /** Called on every voice state change; the settings tab uses this. */
   voiceListeners = new Set<() => void>();
 
@@ -143,6 +145,14 @@ export default class SouffleurPlugin extends Plugin {
     else new Notice(text);
   }
 
+  /** Space in the prompter: pausing stops recognition (no wasted CPU/GPU). */
+  setListening(on: boolean): void {
+    if (on === this.listening) return;
+    this.listening = on;
+    this.voice?.setListening(on);
+    this.refreshInfo();
+  }
+
   /** Forget what was heard; recognition starts afresh (and re-detects the
    * language). Your place in the script stays. */
   resetVoice(): void {
@@ -221,6 +231,8 @@ export default class SouffleurPlugin extends Plugin {
     this.voice = new VoiceClient(this.settings.voiceUrl, {
       onConnect: () => {
         if (this.settings.voiceDevice) this.voice?.setDevice(this.settings.voiceDevice);
+        this.listening = this.views().some((v) => v.prompter?.isPlaying);
+        this.voice?.setListening(this.listening);
         this.views().forEach((v) => v.prompter?.announce());
       },
       onState: (state, detail) => {
@@ -307,6 +319,7 @@ export default class SouffleurPlugin extends Plugin {
       case "error":
         return `🎙 error: ${this.voiceDetail}`;
       case "ready": {
+        if (!this.listening) return "🎙 paused (Space to listen)";
         // RMS → decibels → 0..5 bars (-60 dB silent, 0 dB loudest).
         const db = 20 * Math.log10(Math.max(this.level, 1e-6));
         const bars = Math.round(Math.max(0, Math.min(5, (db + 60) / 12)));

@@ -127,3 +127,32 @@ def test_reset_keeps_place_and_restarts_recognition():
     rec, server = asyncio.run(scenario())
     assert rec.resets == 2  # script + reset
     assert server.aligner is not None and server.aligner.word == 4
+
+
+def test_paused_does_no_recognition(monkeypatch):
+    monkeypatch.setattr("souffleur_voice.server.TICK", 0.001)
+
+    async def scenario() -> tuple[FakeRecognizer, list[dict], list[dict]]:
+        rec = FakeRecognizer()
+        server = VoiceServer(lambda model_id: rec, model="fake", device=None)
+        server.mic = FakeMic()  # ty: ignore[invalid-assignment]
+        server.recognizer = rec
+        server.state = "ready"
+        client = FakeClient()
+        server.client = client  # ty: ignore[invalid-assignment]
+        await server.on_message({"type": "script", "words": WORDS})
+        await server.on_message({"type": "listen", "on": False})
+        task = asyncio.create_task(server.listen())
+        await asyncio.sleep(0.1)
+        paused = list(client.sent)
+        assert rec.n == 0  # the model wasn't fed while paused
+        resets = rec.resets
+        await server.on_message({"type": "listen", "on": True})
+        assert rec.resets == resets + 1  # fresh start after the pause
+        await asyncio.sleep(0.1)
+        task.cancel()
+        return rec, paused, client.sent
+
+    rec, paused, sent = asyncio.run(scenario())
+    assert paused == []  # no level, no words while paused
+    assert rec.n > 0 and any(m["type"] == "position" for m in sent)

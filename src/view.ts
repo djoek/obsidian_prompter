@@ -78,6 +78,7 @@ export class PrompterView extends ItemView {
       onSeek: (word) => this.plugin.voice?.seek(word),
       onToggleVoice: () => void this.plugin.toggleVoice(),
       onResetVoice: () => this.plugin.resetVoice(),
+      onListening: (on) => this.plugin.setListening(on),
       onSectionDone: (section, seconds) => void this.noteRun(section, seconds),
     });
     this.plugin.syncVoice(this);

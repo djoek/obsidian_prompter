@@ -113,6 +113,11 @@ export class VoiceClient {
     this.send({ type: "script", words, word, language, sections });
   }
 
+  /** Paused (false): the voice process stops recognising until resumed. */
+  setListening(on: boolean): void {
+    this.send({ type: "listen", on });
+  }
+
   /** Forget what was heard and start recognition afresh; keeps your place. */
   reset(): void {
     this.send({ type: "reset" });

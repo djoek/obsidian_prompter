@@ -11,6 +11,8 @@ Plugin → server
   {"type": "device", "name": "..." | null}        switch microphone (null = default)
   {"type": "reset"}                               forget what was heard, start recognition
                                                   afresh (Parakeet re-detects the language)
+  {"type": "listen", "on": bool}                  pause (Space) stops recognition; resuming
+                                                  starts it afresh
 
 Server → plugin
   {"type": "status", "state": "downloading"|"loading"|"ready"|"error", "device": ...,
@@ -73,6 +75,9 @@ class VoiceServer:
         self.state = "loading"
         self.error: str | None = None
         self.last_heard = ""
+        # Paused in the prompter: the mic stays open (resuming is instant), but
+        # its audio is dropped and the model does nothing.
+        self.listening = True
         # One thread for all model work.
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="asr")
 
@@ -201,7 +206,7 @@ class VoiceServer:
             if not self.mic:
                 continue
             audio = self.mic.read()
-            if audio.size == 0:
+            if audio.size == 0 or not self.listening:
                 continue
             await self.send(type="level", rms=round(float(np.sqrt(np.mean(audio**2))), 4))
             recognizer, aligner = self.recognizer, self.aligner
@@ -256,6 +261,13 @@ class VoiceServer:
             case "seek" if self.aligner:
                 self.aligner.seek(int(msg["word"]))
                 await self.reset_recognizer()
+            case "listen":
+                on = bool(msg.get("on", True))
+                if on and not self.listening:
+                    await self.reset_recognizer()  # nothing from the pause is matched
+                if on != self.listening:
+                    log.info("Listening %s", "resumed" if on else "paused")
+                self.listening = on
             case "reset":
                 # Your place in the script stays; only what was heard is dropped.
                 log.info("Reset requested: restarting recognition")

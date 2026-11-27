@@ -319,7 +319,8 @@ listening afresh. Your place in the script stays.
 The **language** (from the note's frontmatter, or the default in the settings)
 tells the matcher how to read numbers: `2026` is matched as *tweeduizend
 zesentwintig* in Dutch, *two thousand twenty-six* in English. Parakeet itself
-can't be told the language. **Space** pauses and resumes following. There is also a command,
+can't be told the language. **Space** pauses and resumes following; while paused, the voice process stops
+recognising (no CPU or GPU used), and on resume it starts listening afresh. There is also a command,
 **Toggle voice tracking**, for a hotkey.
 
 How it works, how to tune it, and how to test it on your own recording:

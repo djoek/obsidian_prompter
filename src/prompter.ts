@@ -21,6 +21,8 @@ export interface PrompterCallbacks {
   onToggleVoice?: () => void;
   /** R pressed in the prompter. */
   onResetVoice?: () => void;
+  /** Play/pause changed: in voice mode, pause means "stop listening". */
+  onListening?: (on: boolean) => void;
   /** Voice mode: section `section` was read to its end, in `seconds`
    * (first heard word to last). */
   onSectionDone?: (section: number, seconds: number) => void;
@@ -747,6 +749,11 @@ export class Prompter {
     this.playStart = now;
     this.syncWake();
     this.updateHud();
+    this.callbacks.onListening?.(true);
+  }
+
+  get isPlaying(): boolean {
+    return this.playing;
   }
 
   pause(): void {
@@ -755,6 +762,7 @@ export class Prompter {
     this.countdownEl.hidden = true;
     this.syncWake();
     this.updateHud();
+    this.callbacks.onListening?.(false);
   }
 
   toggle(): void {
