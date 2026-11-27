@@ -23,6 +23,8 @@ export interface PrompterSettings {
   showEyeLine: boolean;
   dimRead: boolean;
   showHud: boolean;
+  /** Status bar: time in this section, and how long it normally takes. */
+  showSectionTimer: boolean;
   nextWords: number; // voice tracking: how many words after the current one stand out
 
   // Pacing
@@ -33,6 +35,9 @@ export interface PrompterSettings {
   quoteSpeed: number;
   headingPause: number; // seconds
   stopAtSection: boolean;
+  countdown: number; // seconds of 3-2-1 before Play; 0 = none
+  smoothStart: number; // seconds to ease up to speed after Play; 0 = instant
+  keepAwake: boolean; // keep the screen on while playing or listening
 
   // Orientation
   rotation: Rotation;
@@ -73,6 +78,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   showEyeLine: true,
   dimRead: true,
   showHud: true,
+  showSectionTimer: true,
   nextWords: 4,
 
   wpm: 140,
@@ -82,6 +88,9 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   quoteSpeed: 1,
   headingPause: 1,
   stopAtSection: true,
+  countdown: 3,
+  smoothStart: 1,
+  keepAwake: true,
 
   rotation: 0,
   flipH: false,

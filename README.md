@@ -116,6 +116,30 @@ change the speed for this session only.
 - Edits to the note show up in the prompter while it is open, and it keeps
   your place.
 
+## How long is each video?
+
+The status bar shows how long you've been in the current section, and how long
+it normally takes at your speed: `1:12 · normally 2:05`. The timer counts up
+while the prompter plays or listens, and starts again at 0:00 in every section,
+also when you press P for a retake. It doesn't count down and doesn't hurry
+you: if a section keeps running long, the text needs shortening.
+
+"Normally" uses the same pacing as auto-scroll: your words per minute, the
+speed per block type, and the pause at each heading. A note's own `wpm` (in its
+frontmatter) counts.
+
+**While writing:** the command **Show section lengths** opens a sidebar with
+every section of the note you're editing, its word count and its normal length,
+plus the total. Click a section to go to it. It updates as you type and never
+changes the note.
+
+## Starting
+
+- **Countdown:** Play shows 3, 2, 1 before the text moves (*Countdown before
+  Play*, 0 to switch off). Not in voice mode, where the text waits for you.
+- **Smooth start:** the text eases up to speed over a second (*Smooth start*).
+- **Keep the screen awake** while playing or listening (on by default).
+
 ## Fonts and spacing
 
 The **Font** setting lists the fonts it finds on your computer. Fonts designed

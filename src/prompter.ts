@@ -5,7 +5,8 @@
 // sits on the eye line. Scrolling = changing `pos`; rendering = translating
 // the text so that `pos` lines up with the eye line.
 
-import type { Block, Run, Script } from "./parser";
+import { blockSeconds, formatDuration, sectionLengths } from "./pacing";
+import type { Run, Script } from "./parser";
 import type { PrompterSettings } from "./settings";
 
 export interface PrompterCallbacks {
@@ -21,7 +22,6 @@ export interface PrompterCallbacks {
   onResetVoice?: () => void;
 }
 
-const MIN_BLOCK_SECONDS = 0.4;
 const JUMP_MS = 450;
 /**
  * If no animation frame arrives within this time, run the loop from a timer.
@@ -79,6 +79,20 @@ export class Prompter {
   private marked = -1;
   private voiceInfo = "";
 
+  // Time spent in the current section (counts up while playing/listening,
+  // restarts at every section) and how long each section normally takes.
+  private timerSection = -1;
+  private elapsed = 0;
+  private shownSecond = -1;
+  private lengths: number[] = [];
+
+  // Play: an optional 3-2-1, then an eased start.
+  private countdownUntil = 0;
+  private playStart = 0;
+  private countdownEl: HTMLElement;
+
+  private wakeLock: WakeLockSentinel | null = null;
+
   constructor(
     host: HTMLElement,
     private settings: PrompterSettings,
@@ -100,6 +114,9 @@ export class Prompter {
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(this.stage);
 
+    this.countdownEl = this.el("output", "sf-countdown", this.rotor);
+    this.countdownEl.hidden = true;
+    this.doc.addEventListener("visibilitychange", this.onVisibility);
     this.diagEl = this.el("pre", "sf-diag", this.rotor);
     this.diagEl.hidden = true;
     this.applySettings(settings);
@@ -128,6 +145,8 @@ export class Prompter {
     this.win.cancelAnimationFrame(this.frame);
     this.win.clearTimeout(this.frameTimer);
     this.resizeObserver.disconnect();
+    this.doc.removeEventListener("visibilitychange", this.onVisibility);
+    void this.releaseWake();
     this.stage.remove();
   }
 
@@ -137,6 +156,7 @@ export class Prompter {
   setScript(script: Script, keepPlace = false): void {
     const anchor = keepPlace ? this.anchor() : null;
     this.script = script;
+    this.computeLengths();
     this.render();
     this.measure();
     if (anchor) {
@@ -260,6 +280,8 @@ export class Prompter {
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
+    this.computeLengths();
+    this.syncWake();
     this.layout();
     this.updateHud();
   }
@@ -362,10 +384,12 @@ export class Prompter {
       const ease = 1 - (1 - t) ** 3;
       this.pos = this.tween.from + (this.tween.to - this.tween.from) * ease;
       if (t >= 1) this.tween = null;
+    } else if (this.countdownUntil) {
+      this.runCountdown(now);
     } else if (this.voice) {
       this.follow(dt);
     } else if (this.playing && now >= this.dwellUntil) {
-      this.advance(dt, now);
+      this.advance(dt * this.easeIn(now), now);
     }
 
     const i = this.blockAt(this.pos);
@@ -374,6 +398,7 @@ export class Prompter {
       this.updateRead();
       this.updateHud();
     }
+    this.updateTimer(dt);
     this.draw();
   };
 
@@ -421,11 +446,7 @@ export class Prompter {
       }
     }
 
-    const seconds = Math.max(
-      MIN_BLOCK_SECONDS,
-      (block.words / (this.settings.wpm * this.speedFor(block))) * 60,
-    );
-    this.pos += (this.blockHeight(i) / seconds) * dt;
+    this.pos += (this.blockHeight(i) / blockSeconds(block, this.settings)) * dt;
 
     if (this.pos >= this.total) {
       this.pos = this.total;
@@ -433,19 +454,78 @@ export class Prompter {
     }
   }
 
-  private speedFor(block: Block): number {
-    const s = this.settings;
-    switch (block.type) {
-      case "heading":
-        return s.headingSpeed;
-      case "list":
-        return s.listSpeed;
-      case "quote":
-        return s.quoteSpeed;
-      default:
-        return s.paragraphSpeed;
+  /** Smooth start: 0 → 1 over `smoothStart` seconds after Play (ease-in-out). */
+  private easeIn(now: number): number {
+    const ramp = this.settings.smoothStart * 1000;
+    if (ramp <= 0) return 1;
+    const t = Math.min(1, (now - this.playStart) / ramp);
+    return (1 - Math.cos(Math.PI * t)) / 2;
+  }
+
+  private runCountdown(now: number): void {
+    const left = Math.ceil((this.countdownUntil - now) / 1000);
+    if (left > 0) {
+      this.countdownEl.textContent = String(left);
+      return;
+    }
+    this.countdownUntil = 0;
+    this.countdownEl.hidden = true;
+    this.playStart = now;
+  }
+
+  // ── Section timer ──────────────────────────────────────────────────────
+
+  private computeLengths(): void {
+    this.lengths = sectionLengths(this.script, this.settings).map((l) => l.seconds);
+  }
+
+  /** Counts while playing or listening, never during the 3-2-1; a new
+   * section (by scrolling, voice or a jump) starts again at 0:00. */
+  private updateTimer(dt: number): void {
+    const n = this.currentSection();
+    if (n !== this.timerSection) {
+      this.timerSection = n;
+      this.elapsed = 0;
+      this.shownSecond = -1;
+    } else if (this.playing && !this.countdownUntil) {
+      this.elapsed += dt;
+    }
+    const second = Math.floor(this.elapsed);
+    if (second !== this.shownSecond) {
+      this.shownSecond = second;
+      this.updateHud();
     }
   }
+
+  // ── Keep the screen awake ──────────────────────────────────────────────
+
+  private async holdWake(): Promise<void> {
+    if (!this.settings.keepAwake || this.wakeLock || this.doc.visibilityState !== "visible") return;
+    try {
+      this.wakeLock = await this.win.navigator.wakeLock.request("screen");
+      this.wakeLock.addEventListener("release", () => {
+        this.wakeLock = null;
+      });
+    } catch {
+      // Not allowed or not supported here: the screen just follows the OS.
+    }
+  }
+
+  private async releaseWake(): Promise<void> {
+    const lock = this.wakeLock;
+    this.wakeLock = null;
+    await lock?.release().catch(() => {});
+  }
+
+  private syncWake(): void {
+    if (this.settings.keepAwake && (this.playing || this.voice)) void this.holdWake();
+    else void this.releaseWake();
+  }
+
+  /** The OS drops a wake lock when the window is hidden; take it back. */
+  private onVisibility = (): void => {
+    if (this.doc.visibilityState === "visible") this.syncWake();
+  };
 
   // ── Controls ───────────────────────────────────────────────────────────
 
@@ -453,11 +533,23 @@ export class Prompter {
     if (this.pos >= this.total && !this.voice) return;
     this.playing = true;
     this.dwellUntil = 0;
+    const now = this.win.performance.now();
+    // The 3-2-1 is for auto-scroll; in voice mode the text waits for you.
+    if (!this.voice && this.settings.countdown > 0) {
+      this.countdownUntil = now + this.settings.countdown * 1000;
+      this.countdownEl.textContent = String(this.settings.countdown);
+      this.countdownEl.hidden = false;
+    }
+    this.playStart = now;
+    this.syncWake();
     this.updateHud();
   }
 
   pause(): void {
     this.playing = false;
+    this.countdownUntil = 0;
+    this.countdownEl.hidden = true;
+    this.syncWake();
     this.updateHud();
   }
 
@@ -488,7 +580,9 @@ export class Prompter {
 
   goToSection(n: number): void {
     const sec = this.script.sections[n];
-    if (sec) this.goToBlock(sec.firstBlock);
+    if (!sec) return;
+    this.goToBlock(sec.firstBlock);
+    this.timerSection = -1; // a retake of the same section starts at 0:00 too
   }
 
   nextSection(): void {
@@ -683,7 +777,12 @@ export class Prompter {
     const state = this.playing ? "▶" : "❚❚";
     const mode = this.voice ? "🎙 voice" : `${this.settings.wpm} wpm`;
     const info = this.voiceInfo ? `  ·  ${this.voiceInfo}` : "";
-    this.hud.textContent = `${state}  ${mode}  ·  ${n + 1}/${total}  ${title}${info}`;
+    const normally = this.lengths[n];
+    const timer =
+      this.settings.showSectionTimer && normally !== undefined
+        ? `  ·  ${formatDuration(this.elapsed)} · normally ${formatDuration(normally)}`
+        : "";
+    this.hud.textContent = `${state}  ${mode}  ·  ${n + 1}/${total}  ${title}${timer}${info}`;
   }
 
   toast(text: string): void {

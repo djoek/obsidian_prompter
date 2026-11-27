@@ -8,6 +8,7 @@ import {
   type PrompterSettings,
   type Rotation,
 } from "./settings";
+import { SECTIONS_VIEW, SectionsView } from "./sections";
 import { PrompterView, VIEW_TYPE } from "./view";
 import { firstFamily, fontStack, installedFonts } from "./fonts";
 import { VoiceClient, type VoiceState } from "./voice";
@@ -26,12 +27,18 @@ export default class SouffleurPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...migrateSettings(await this.loadSettingsData()) };
     this.registerView(VIEW_TYPE, (leaf) => new PrompterView(leaf, this));
+    this.registerView(SECTIONS_VIEW, (leaf) => new SectionsView(leaf, this));
     this.addSettingTab(new SouffleurSettingTab(this.app, this));
 
     this.addCommand({
       id: "open",
       name: "Open teleprompter for current note",
       checkCallback: (checking) => this.openCommand(checking, false),
+    });
+    this.addCommand({
+      id: "show-section-lengths",
+      name: "Show section lengths",
+      callback: () => void this.showSections(),
     });
     this.addCommand({
       id: "open-at-cursor",
@@ -249,6 +256,21 @@ export default class SouffleurPlugin extends Plugin {
     await workspace.revealLeaf(leaf);
   }
 
+  private async showSections(): Promise<void> {
+    const { workspace } = this.app;
+    const leaf = workspace.getLeavesOfType(SECTIONS_VIEW)[0] ?? workspace.getRightLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: SECTIONS_VIEW, active: true });
+    await workspace.revealLeaf(leaf);
+  }
+
+  sectionViews(): SectionsView[] {
+    return this.app.workspace
+      .getLeavesOfType(SECTIONS_VIEW)
+      .map((l) => l.view)
+      .filter((v): v is SectionsView => v instanceof SectionsView);
+  }
+
   views(): PrompterView[] {
     return this.app.workspace
       .getLeavesOfType(VIEW_TYPE)
@@ -261,6 +283,7 @@ export default class SouffleurPlugin extends Plugin {
     this.settings = { ...this.settings, ...patch };
     await this.saveData(this.settings);
     if (apply) this.views().forEach((v) => v.refreshSettings());
+    this.sectionViews().forEach((v) => void v.refresh());
   }
 }
 
@@ -400,6 +423,11 @@ class SouffleurSettingTab extends PluginSettingTab {
     toggle("Show eye-line markers", "showEyeLine");
     toggle("Dim text already read", "dimRead");
     toggle("Show status bar", "showHud", "Toggle in the prompter with H.");
+    toggle(
+      "Show section timer",
+      "showSectionTimer",
+      "In the status bar: time spent in this section, and how long it normally takes at your speed.",
+    );
 
     color("Next words (voice tracking)", "nextColor");
     slider(
@@ -418,6 +446,9 @@ class SouffleurSettingTab extends PluginSettingTab {
     slider("List item speed ×", "listSpeed", 0.25, 4, 0.05);
     slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
     slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
+    slider("Countdown before Play", "countdown", 0, 5, 1, "Seconds of 3-2-1 on screen. 0: start at once. Not used in voice mode.");
+    slider("Smooth start", "smoothStart", 0, 3, 0.25, "Seconds to ease up to speed after Play. 0: full speed at once.");
+    toggle("Keep the screen awake", "keepAwake", "While playing or listening, the display doesn't dim or sleep.");
     toggle(
       "Stop at section break",
       "stopAtSection",

@@ -186,3 +186,35 @@ progress.sf-download {
   border-radius: 0.3em;
 }
 [hidden].sf-diag { display: none; }
+
+/* 3-2-1 before Play */
+.sf-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 800 calc(var(--sf-size) * 4) / 1 system-ui, sans-serif;
+  color: var(--sf-heading);
+  background: color-mix(in srgb, var(--sf-bg) 70%, transparent);
+  pointer-events: none;
+}
+[hidden].sf-countdown { display: none; }
+
+/* Sidebar: section lengths */
+.sf-sections {
+  & h4 { margin: 0 0 0.2em; }
+  & .sf-sections-pace { margin: 0 0 0.8em; color: var(--text-muted); font-size: var(--font-smaller); }
+  & table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  & th, & td { padding: 0.3em 0.4em; text-align: right; border-bottom: 1px solid var(--background-modifier-border); }
+  & th:first-child, & td:first-child { text-align: left; }
+  & thead th { font-size: var(--font-smaller); color: var(--text-muted); font-weight: 600; }
+  & tfoot th, & tfoot td { font-weight: 600; border-bottom: none; }
+  & td button {
+    all: unset;
+    cursor: pointer;
+    color: var(--text-normal);
+    overflow-wrap: anywhere;
+  }
+  & td button:hover { color: var(--text-accent); }
+  & td button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+}
