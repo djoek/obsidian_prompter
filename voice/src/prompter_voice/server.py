@@ -9,7 +9,8 @@ Plugin → server
   {"type": "device", "name": "..." | null}        switch microphone (null = default)
 
 Server → plugin
-  {"type": "status", "state": "loading"|"ready"|"error", "device": ..., "model": ..., "error": ...}
+  {"type": "status", "state": "downloading"|"loading"|"ready"|"error", "device": ...,
+   "model": ..., "error": ..., "progress": {"done": bytes, "total": bytes} | null}
   {"type": "devices", "devices": [{"name": ..., "default": bool}], "current": ...}
   {"type": "position", "word": n}                 you are saying word n
   {"type": "heard", "text": "..."}                the last words the model heard
@@ -19,6 +20,7 @@ Server → plugin
 import asyncio
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
@@ -39,8 +41,17 @@ TICK = 0.25  # seconds between recognition steps
 
 
 class VoiceServer:
-    def __init__(self, make_recognizer, device: str | None, lang: str = "nl") -> None:  # noqa: ANN001
+    def __init__(
+        self,
+        make_recognizer,  # noqa: ANN001  () -> Recognizer
+        device: str | None,
+        lang: str = "nl",
+        prepare=None,  # noqa: ANN001  (on_progress) -> None: fetch the model files
+    ) -> None:
         self.make_recognizer = make_recognizer
+        self.prepare = prepare
+        self.progress: tuple[int, int] | None = None
+        self._progress_sent = 0.0
         self.device_name = device
         self.lang = lang
         self.recognizer: Recognizer | None = None
@@ -67,12 +78,20 @@ class VoiceServer:
             self.client = None
 
     async def send_status(self) -> None:
-        await self.send(
+        await self.send(**self.status())
+
+    def status(self) -> dict[str, Any]:
+        return dict(
             type="status",
             state=self.state,
             device=self.mic.name if self.mic else None,
             model=self.recognizer.name if self.recognizer else None,
             error=self.error,
+            progress=(
+                {"done": self.progress[0], "total": self.progress[1]}
+                if self.state == "downloading" and self.progress
+                else None
+            ),
         )
 
     def open_mic(self, name: str | None) -> None:
@@ -88,12 +107,40 @@ class VoiceServer:
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
+    def _on_progress(self, done: int, total: int) -> None:
+        """Called on the worker thread while downloading; hands over to the
+        event loop, which sends at most 4 updates a second (plus the last)."""
+
+        def apply() -> None:
+            if total <= 1:  # already cached: nothing to show
+                return
+            self.state, self.progress = "downloading", (done, total)
+            now = time.monotonic()
+            if done >= total or now - self._progress_sent >= 0.25:
+                self._progress_sent = now
+                # Build the message now: by the time it is sent, the download
+                # has moved on, and we want this update's numbers.
+                asyncio.ensure_future(self.send(**self.status()))
+
+        self.loop.call_soon_threadsafe(apply)
+
     async def start(self) -> None:
+        self.loop = asyncio.get_running_loop()
+        # A microphone problem shouldn't stop the model from downloading:
+        # you can pick another microphone in the settings later.
         try:
             self.open_mic(self.device_name)
+        except Exception as e:
+            self.error = f"Microphone: {e}"
+            log.warning("Could not open microphone: %s", e)
+        try:
+            if self.prepare:
+                await self.run_in_worker(self.prepare, self._on_progress)
+            self.state = "loading"
+            await self.send_status()
             log.info("Loading model ...")
             self.recognizer = await self.run_in_worker(self.make_recognizer)
-            self.state = "ready"
+            self.state = "ready" if self.mic else "error"
             log.info("Ready: %s", self.recognizer.name)
         except Exception as e:  # report to the plugin instead of dying
             self.state, self.error = "error", str(e)
@@ -163,7 +210,9 @@ class VoiceServer:
             case "device":
                 try:
                     self.open_mic(msg.get("name") or None)
-                    self.error = None if self.recognizer else self.error
+                    self.error = None
+                    if self.recognizer:
+                        self.state = "ready"
                 except Exception as e:
                     self.error = str(e)
                     log.warning("Could not open %r: %s", msg.get("name"), e)

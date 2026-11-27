@@ -5,6 +5,8 @@ export interface PrompterSettings {
   fontFamily: string;
   fontSize: number; // px
   lineHeight: number; // unitless
+  letterSpacing: number; // em
+  wordSpacing: number; // em
   textWidth: number; // % of the prompter width
   textAlign: "left" | "center";
 
@@ -14,12 +16,14 @@ export interface PrompterSettings {
   headingColor: string;
   markColor: string;
   eyeLineColor: string;
+  nextColor: string;
 
   // Reading aids
   eyeLine: number; // % from the top where you read
   showEyeLine: boolean;
   dimRead: boolean;
   showHud: boolean;
+  nextWords: number; // voice tracking: how many words after the current one stand out
 
   // Pacing
   wpm: number; // base words per minute
@@ -49,6 +53,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
   fontSize: 56,
   lineHeight: 1.35,
+  letterSpacing: 0,
+  wordSpacing: 0,
   textWidth: 90,
   textAlign: "left",
 
@@ -57,11 +63,13 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   headingColor: "#ffd166",
   markColor: "#ffd166",
   eyeLineColor: "#ff4d4d",
+  nextColor: "#7ee8fa",
 
   eyeLine: 30,
   showEyeLine: true,
   dimRead: true,
   showHud: true,
+  nextWords: 4,
 
   wpm: 140,
   headingSpeed: 1,

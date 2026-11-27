@@ -210,6 +210,8 @@ export class Prompter {
     st.setProperty("--tp-font", s.fontFamily);
     st.setProperty("--tp-size", `${s.fontSize}px`);
     st.setProperty("--tp-line", String(s.lineHeight));
+    st.setProperty("--tp-letter", `${s.letterSpacing}em`);
+    st.setProperty("--tp-word", `${s.wordSpacing}em`);
     st.setProperty("--tp-width", `${s.textWidth}%`);
     st.setProperty("--tp-align", s.textAlign);
     st.setProperty("--tp-fg", s.textColor);
@@ -217,6 +219,7 @@ export class Prompter {
     st.setProperty("--tp-heading", s.headingColor);
     st.setProperty("--tp-mark", s.markColor);
     st.setProperty("--tp-eye", s.eyeLineColor);
+    st.setProperty("--tp-next", s.nextColor);
     st.setProperty("--tp-eye-pos", `${s.eyeLine}%`);
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
@@ -588,6 +591,14 @@ export class Prompter {
     }
     this.stage.querySelector("[data-now]")?.removeAttribute("data-now");
     if (showNow) this.wordEls[now]?.setAttribute("data-now", "");
+    // The few words you are about to say. (A handful of elements: just
+    // clear and set them again.)
+    for (const el of this.stage.querySelectorAll("[data-next]")) el.removeAttribute("data-next");
+    if (this.voice) {
+      for (let w = now + 1; w <= now + this.settings.nextWords; w++) {
+        this.wordEls[w]?.setAttribute("data-next", "");
+      }
+    }
     this.marked = now;
   }
 

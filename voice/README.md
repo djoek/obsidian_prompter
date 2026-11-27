@@ -21,7 +21,7 @@ uvx --from "prompter-voice[parakeet] @ git+https://github.com/djoek/obsidian_pro
 ```
 
 `uvx` installs it into a cached, isolated environment; nothing to clone.
-The first start downloads the model (about 1.2 GB) to `~/.cache/huggingface`.
+The first start downloads the model (about 2.5 GB) to `~/.cache/huggingface`.
 
 To see the log, run it in a terminal instead, and clear the start command in
 the plugin settings:

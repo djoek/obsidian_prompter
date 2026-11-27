@@ -6,7 +6,12 @@ export interface VoiceDevice {
   default: boolean;
 }
 
-export type VoiceState = "offline" | "loading" | "ready" | "error";
+export type VoiceState = "offline" | "downloading" | "loading" | "ready" | "error";
+
+export interface Download {
+  done: number;
+  total: number;
+}
 
 export interface VoiceEvents {
   onConnect?: () => void;
@@ -21,6 +26,8 @@ const RETRY_MS = 2000;
 export class VoiceClient {
   state: VoiceState = "offline";
   device = "";
+  /** Model download progress; null when not downloading. */
+  download: Download | null = null;
   private ws: WebSocket | null = null;
   private retry = 0;
   private closed = false;
@@ -51,6 +58,7 @@ export class VoiceClient {
     ws.onmessage = (e) => this.receive(JSON.parse(String(e.data)));
     ws.onclose = () => {
       this.ws = null;
+      this.download = null;
       this.setState("offline", "");
       this.scheduleRetry();
     };
@@ -72,6 +80,7 @@ export class VoiceClient {
     switch (msg.type) {
       case "status":
         this.device = String(msg.device ?? "");
+        this.download = (msg.progress as Download | null) ?? null;
         this.setState(
           msg.state as VoiceState,
           msg.state === "error" ? String(msg.error ?? "") : this.device,

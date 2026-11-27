@@ -7,15 +7,19 @@ import {
   type Rotation,
 } from "./settings";
 import { PrompterView, VIEW_TYPE } from "./view";
+import { firstFamily, fontStack, installedFonts } from "./fonts";
 import { VoiceClient, type VoiceState } from "./voice";
 
 export default class TeleprompterPlugin extends Plugin {
   settings: PrompterSettings = { ...DEFAULT_SETTINGS };
   voice: VoiceClient | null = null;
   private proc: ChildProcess | null = null;
-  private voiceDetail = "";
+  /** Device name, or the error text when the state is "error". */
+  voiceDetail = "";
   private level = 0;
   private heard = "";
+  /** Called on every voice state change; the settings tab uses this. */
+  voiceListeners = new Set<() => void>();
 
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...(await this.loadData()) };
@@ -87,6 +91,7 @@ export default class TeleprompterPlugin extends Plugin {
       onState: (state, detail) => {
         this.voiceDetail = detail;
         this.views().forEach((v) => this.syncVoice(v));
+        this.voiceListeners.forEach((fn) => fn());
         if (state === "error") new Notice(`Voice tracking: ${detail}`);
       },
       onPosition: (word) => this.views().forEach((v) => v.prompter?.followWord(word)),
@@ -100,6 +105,7 @@ export default class TeleprompterPlugin extends Plugin {
       },
     });
     this.views().forEach((v) => this.syncVoice(v));
+    this.voiceListeners.forEach((fn) => fn());
   }
 
   private stopVoice(): void {
@@ -156,6 +162,10 @@ export default class TeleprompterPlugin extends Plugin {
     switch (state) {
       case "offline":
         return "🎙 waiting for voice process…";
+      case "downloading": {
+        const d = this.voice.download;
+        return d ? `🎙 downloading model ${formatProgress(d.done, d.total)}` : "🎙 downloading model…";
+      }
       case "loading":
         return "🎙 loading model…";
       case "error":
@@ -205,7 +215,21 @@ export default class TeleprompterPlugin extends Plugin {
   }
 }
 
+/** "43% · 1.1 of 2.5 GB" */
+export function formatProgress(done: number, total: number): string {
+  const gb = (n: number) => (n / 1e9).toFixed(1);
+  const pct = total ? Math.floor((done / total) * 100) : 0;
+  return `${pct}% · ${gb(done)} of ${gb(total)} GB`;
+}
+
 class TeleprompterSettingTab extends PluginSettingTab {
+  private unsubscribe: (() => void) | null = null;
+
+  hide(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+  }
+
   constructor(
     app: App,
     private plugin: TeleprompterPlugin,
@@ -249,7 +273,13 @@ class TeleprompterSettingTab extends PluginSettingTab {
         .setDesc(desc)
         .addToggle((t) => t.setValue(s[key]).onChange((v) => set({ [key]: v })));
 
-    type ColorKey = "textColor" | "backgroundColor" | "headingColor" | "markColor" | "eyeLineColor";
+    type ColorKey =
+      | "textColor"
+      | "backgroundColor"
+      | "headingColor"
+      | "markColor"
+      | "eyeLineColor"
+      | "nextColor";
     const color = (name: string, key: ColorKey) =>
       new Setting(containerEl)
         .setName(name)
@@ -268,9 +298,37 @@ class TeleprompterSettingTab extends PluginSettingTab {
     toggle("Flip vertical", "flipV", "Mirror top↔bottom.");
 
     new Setting(containerEl).setName("Text").setHeading();
-    text("Font", "fontFamily", "Any CSS font-family list.");
+    // Fonts found on this computer; dyslexia-oriented ones first.
+    const fonts = installedFonts(containerEl.doc);
+    const current = firstFamily(s.fontFamily);
+    let custom: HTMLInputElement | null = null;
+    new Setting(containerEl)
+      .setName("Font")
+      .setDesc(
+        fonts.some((f) => f.dyslexia)
+          ? "Fonts found on this computer. ★ = designed or recommended for dyslexic readers."
+          : "Fonts found on this computer.",
+      )
+      .addDropdown((d) => {
+        for (const f of fonts) d.addOption(f.name, f.dyslexia ? `★ ${f.name}` : f.name);
+        if (!fonts.some((f) => f.name === current)) d.addOption(current, `${current} (custom)`);
+        d.setValue(current).onChange((name) => {
+          const stack = fontStack(name);
+          if (custom) custom.value = stack;
+          set({ fontFamily: stack });
+        });
+      });
+    new Setting(containerEl)
+      .setName("Font, as CSS")
+      .setDesc("Or type any font-family list here.")
+      .addText((t) => {
+        custom = t.inputEl;
+        t.setValue(s.fontFamily).onChange((v) => set({ fontFamily: v }));
+      });
     slider("Font size", "fontSize", 16, 160, 2, "Pixels.");
     slider("Line height", "lineHeight", 1, 2, 0.05);
+    slider("Letter spacing", "letterSpacing", 0, 0.2, 0.01, "Extra space between letters, in em.");
+    slider("Word spacing", "wordSpacing", 0, 0.6, 0.02, "Extra space between words, in em.");
     slider("Text width", "textWidth", 40, 100, 1, "Percentage of the prompter width.");
     new Setting(containerEl)
       .setName("Alignment")
@@ -293,6 +351,16 @@ class TeleprompterSettingTab extends PluginSettingTab {
     toggle("Show eye-line markers", "showEyeLine");
     toggle("Dim text already read", "dimRead");
     toggle("Show status bar", "showHud", "Toggle in the prompter with H.");
+
+    color("Next words (voice tracking)", "nextColor");
+    slider(
+      "How many next words to highlight",
+      "nextWords",
+      0,
+      10,
+      1,
+      "With voice tracking: the words right after the one you are saying.",
+    );
 
     new Setting(containerEl).setName("Pacing").setHeading();
     slider("Speed", "wpm", 40, 400, 5, "Words per minute. Change live with + and −.");
@@ -324,6 +392,35 @@ class TeleprompterSettingTab extends PluginSettingTab {
           window.setTimeout(() => this.display(), 1500);
         }),
       );
+    // Model download: a <progress> bar that updates while this tab is open.
+    const model = new Setting(containerEl).setName("Speech model");
+    const bar = model.controlEl.createEl("progress", { cls: "tp-download" });
+    bar.max = 1;
+    const showModel = () => {
+      const v = this.plugin.voice;
+      const d = v?.download;
+      bar.hidden = !d;
+      if (d) {
+        bar.value = d.total ? d.done / d.total : 0;
+        model.setDesc(`Downloading Parakeet v3: ${formatProgress(d.done, d.total)}`);
+      } else {
+        model.setDesc(
+          {
+            off: "Parakeet v3 (2.5 GB, downloaded on the first start).",
+            offline: "Waiting for the voice process…",
+            downloading: "Downloading Parakeet v3…",
+            loading: "Downloaded. Loading into memory…",
+            ready: "Parakeet v3, ready.",
+            error: `Error: ${this.plugin.voiceDetail || "see the developer console"}`,
+          }[v?.state ?? "off"],
+        );
+      }
+    };
+    showModel();
+    this.unsubscribe?.();
+    this.plugin.voiceListeners.add(showModel);
+    this.unsubscribe = () => this.plugin.voiceListeners.delete(showModel);
+
     const mic = new Setting(containerEl)
       .setName("Microphone")
       .setDesc("The list comes from the voice process, so it must be running.");

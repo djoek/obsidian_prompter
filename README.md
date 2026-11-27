@@ -67,6 +67,27 @@ a Stream Deck that sends those hotkeys.
 - Edits to the note show up in the prompter while it is open, and it keeps
   your place.
 
+## Fonts and spacing
+
+The **Font** setting lists the fonts it finds on your computer. Fonts designed
+or often recommended for dyslexic readers are marked ★ and listed first:
+OpenDyslexic, Atkinson Hyperlegible, Lexend and Andika (free downloads), and
+Verdana, Tahoma, Trebuchet MS and Comic Sans MS (included with macOS).
+To install one with Homebrew:
+
+```bash
+brew install --cask font-opendyslexic
+```
+
+```bash
+brew install --cask font-atkinson-hyperlegible-next
+```
+
+Then reopen the Teleprompter settings so the new font is found.
+
+**Letter spacing** and **word spacing** are separate settings; extra spacing
+is worth trying with any font.
+
 ## How the scrolling is paced
 
 Speed is set in **words per minute**. For the block on the eye line, the
@@ -115,10 +136,15 @@ speech recognition on Apple Silicon. Nothing leaves your Mac.
 1. Install [uv](https://docs.astral.sh/uv/) if you don't have it.
 2. *Settings → Teleprompter → Voice tracking*: turn on **Enable voice tracking**.
    The plugin starts the process with the **Start command** (it is filled in
-   for you). The first start downloads the model, about 1.2 GB, so give it a
-   few minutes; the status bar in the prompter says what it is doing.
+   for you). The first start downloads the model, about 2.5 GB. The
+   **Speech model** row in the settings shows a progress bar, and the
+   prompter's status bar shows the percentage.
 3. Allow microphone access when macOS asks.
 4. Choose your **Microphone**, and open the prompter.
+
+While you speak, words already said fade, the current word is underlined,
+and the next few words (4 by default) get their own colour, so your eye
+knows where to go. Both are in the settings, under *Reading aids*.
 
 The status bar shows a level meter and the last words heard, so you can see
 that it works. **Space** pauses and resumes following. There is also a command,

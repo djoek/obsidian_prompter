@@ -54,12 +54,16 @@ def main() -> None:
             bench(recognizer, read_wav(args.audio), words)
         case _:
             from prompter_voice.asr import ParakeetRecognizer
+            from prompter_voice.download import download
             from prompter_voice.server import VoiceServer, serve_forever
 
+            model = getattr(args, "model", DEFAULT_MODEL)
+
             server = VoiceServer(
-                lambda: ParakeetRecognizer(args.model, portable=getattr(args, "portable", False)),
+                lambda: ParakeetRecognizer(model, portable=getattr(args, "portable", False)),
                 device=getattr(args, "device", None),
                 lang=getattr(args, "lang", "nl"),
+                prepare=lambda on_progress: download(model, on_progress),
             )
             with contextlib.suppress(KeyboardInterrupt):
                 asyncio.run(

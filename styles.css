@@ -38,6 +38,8 @@
   font-family: var(--tp-font);
   font-size: var(--tp-size);
   line-height: var(--tp-line);
+  letter-spacing: var(--tp-letter, 0);
+  word-spacing: var(--tp-word, 0);
   text-align: var(--tp-align);
   will-change: transform;
 
@@ -159,4 +161,14 @@
     text-decoration: underline var(--tp-eye) 0.08em;
     text-underline-offset: 0.15em;
   }
+  /* Colour only: bold would make words wider, re-wrap the line and make
+     the text jump under your eyes. */
+  & [data-next] { color: var(--tp-next); }
+  & span { transition: color 0.25s, opacity 0.25s; }
+}
+
+/* Settings: model download bar */
+progress.tp-download {
+  width: 12em;
+  accent-color: var(--interactive-accent);
 }
