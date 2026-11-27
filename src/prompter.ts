@@ -21,6 +21,9 @@ export interface PrompterCallbacks {
   onToggleVoice?: () => void;
   /** R pressed in the prompter. */
   onResetVoice?: () => void;
+  /** Voice mode: section `section` was read to its end, in `seconds`
+   * (first heard word to last). */
+  onSectionDone?: (section: number, seconds: number) => void;
 }
 
 const JUMP_MS = 450;
@@ -103,6 +106,11 @@ export class Prompter {
 
   private wakeLock: WakeLockSentinel | null = null;
 
+  /** The word each section starts at. */
+  private sectionStarts: number[] = [];
+  /** Voice mode: the current read-through of a section. */
+  private run = { section: -1, start: 0, done: false };
+
   /** Voice mode: when the last position arrived (pause helper). */
   private lastHeardAt = 0;
   /** Voice mode: when the microphone last picked up sound. */
@@ -177,6 +185,9 @@ export class Prompter {
   /** Render a script. With `keepPlace`, stay on the same block after a reload. */
   setScript(script: Script, keepPlace = false): void {
     const anchor = keepPlace ? this.anchor() : null;
+    // A reload that only changed comments (e.g. a "last run" note) keeps the
+    // same words: then the voice process needn't start over.
+    const wordsBefore = this.words().join("\u0001");
     this.script = script;
     this.computeLengths();
     this.render();
@@ -196,15 +207,12 @@ export class Prompter {
     this.highlight(marked);
     this.updateRead();
     this.updateHud();
-    this.announce();
+    if (!keepPlace || this.words().join("\u0001") !== wordsBefore) this.announce();
   }
 
   /** Tell listeners (the voice process) the words and where we are. */
   announce(): void {
-    const sections = this.script.sections.map(
-      (s) => this.blockWord[s.firstBlock] ?? this.wordEls.length,
-    );
-    this.callbacks.onScript?.(this.words(), this.wordAtPos(), sections);
+    this.callbacks.onScript?.(this.words(), this.wordAtPos(), this.sectionStarts);
   }
 
   words(): string[] {
@@ -258,6 +266,9 @@ export class Prompter {
       this.renderRuns(el, block.runs, this.els.length, spoken);
       this.els.push(el);
     }
+    this.sectionStarts = this.script.sections.map(
+      (sec) => this.blockWord[sec.firstBlock] ?? this.wordEls.length,
+    );
   }
 
   private sectionLabel(index: number, total: number): string {
@@ -609,6 +620,29 @@ export class Prompter {
     this.playStart = now;
   }
 
+  /**
+   * Time a read-through: from the first word heard in a section to its end
+   * (within its last 3 words, as a short last word is sometimes missed).
+   * Starting the section over, by voice or a jump, starts the clock again.
+   */
+  private trackRun(i: number, at: number): void {
+    const section = this.sectionOfWord(i);
+    if (section !== this.run.section || i < this.marked - 3) {
+      this.run = { section, start: at, done: false };
+    }
+    const last = (this.sectionStarts[section + 1] ?? this.wordEls.length) - 1;
+    if (!this.run.done && i >= last - 2 && at - this.run.start > 1000) {
+      this.run.done = true;
+      this.callbacks.onSectionDone?.(section, (at - this.run.start) / 1000);
+    }
+  }
+
+  private sectionOfWord(i: number): number {
+    let n = 0;
+    while (n + 1 < this.sectionStarts.length && (this.sectionStarts[n + 1] ?? Infinity) <= i) n++;
+    return n;
+  }
+
   /** Heard words lose their colour after `heardHold` seconds (CSS fades). */
   private expireHeard(now: number): void {
     const hold = this.settings.heardHold * 1000;
@@ -736,6 +770,7 @@ export class Prompter {
     this.current = i;
     const word = this.blockWord[i] ?? 0;
     this.clearHeard();
+    this.run = { section: -1, start: 0, done: false }; // a jump: no run in progress
     this.highlight(word - 1);
     this.voiceWord = -1;
     this.callbacks.onSeek?.(word);
@@ -900,6 +935,7 @@ export class Prompter {
   followWord(i: number): void {
     if (!this.voice || !this.playing || !this.wordEls[i]) return;
     const at = this.win.performance.now();
+    this.trackRun(i, at);
     if (i < this.marked) {
       this.clearHeard(); // a retake: nothing stays coloured
     } else if (this.settings.heardHold > 0) {

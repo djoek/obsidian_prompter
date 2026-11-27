@@ -8,8 +8,10 @@ import {
 } from "obsidian";
 import { noteOverrides, type NoteOverrides } from "./frontmatter";
 import type SouffleurPlugin from "./main";
+import { formatDuration } from "./pacing";
 import { blockAtLine, parseScript, type Script } from "./parser";
 import { Prompter } from "./prompter";
+import { setRunComment } from "./runlog";
 import type { PrompterSettings } from "./settings";
 
 export const VIEW_TYPE = "souffleur";
@@ -76,6 +78,7 @@ export class PrompterView extends ItemView {
       onSeek: (word) => this.plugin.voice?.seek(word),
       onToggleVoice: () => void this.plugin.toggleVoice(),
       onResetVoice: () => this.plugin.resetVoice(),
+      onSectionDone: (section, seconds) => void this.noteRun(section, seconds),
     });
     this.plugin.syncVoice(this);
 
@@ -144,6 +147,16 @@ export class PrompterView extends ItemView {
 
     this.script = parseScript(await this.app.vault.cachedRead(file));
     this.prompter.setScript(this.script, keepPlace);
+  }
+
+  /** Write the section's "last run" comment into the note. */
+  private async noteRun(section: number, seconds: number): Promise<void> {
+    if (!this.settings().logRuns || !this.filePath) return;
+    const file = this.app.vault.getAbstractFileByPath(this.filePath);
+    if (!(file instanceof TFile)) return;
+    const when = new Date();
+    await this.app.vault.process(file, (text) => setRunComment(text, section, seconds, when));
+    this.prompter?.toast(`Section ${section + 1}: ${formatDuration(seconds)}`);
   }
 
   /** Say once (per distinct set) which frontmatter keys were ignored. */

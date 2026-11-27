@@ -153,6 +153,17 @@ you: if a section keeps running long, the text needs shortening.
 speed per block type, and the pause at each heading. A note's own `wpm` (in its
 frontmatter) counts.
 
+**After a take:** in voice mode, when you've read a section to its end,
+Souffleur writes how long it took into the note, at the end of that section:
+
+```markdown
+%% last run: 2:07 · 2026-11-28 14:03 %%
+```
+
+It's timed from the first word heard to the last (starting over, or P, starts
+the clock again), and the next run replaces the line. Being a comment, it never
+shows in the prompter. Turn it off with *Pacing → Note the last run*.
+
 **While writing:** the command **Show section lengths** opens a sidebar with
 every section of the note you're editing, its word count and its normal length,
 plus the total. Click a section to go to it. It updates as you type and never

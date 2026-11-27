@@ -751,6 +751,11 @@ class SouffleurSettingTab extends PluginSettingTab {
     slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
     slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
     toggle(
+      "Note the last run",
+      "logRuns",
+      "Voice tracking: when you've read a section to the end, write its time as a %% last run %% comment at the end of that section in the note (replacing the previous one).",
+    );
+    toggle(
       "Read headings aloud",
       "speakHeadings",
       "Off: headings are labels. They show, but aren't highlighted, matched by voice or counted in the timing.",

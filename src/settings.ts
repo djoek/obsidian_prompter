@@ -51,6 +51,7 @@ export interface PrompterSettings {
   headingPause: number; // seconds
   speakHeadings: boolean; // headings are read aloud (else they're labels)
   stopAtSection: boolean;
+  logRuns: boolean; // voice: write each section's last run time into the note
   countdown: number; // seconds of 3-2-1 before Play; 0 = none
   smoothStart: number; // seconds to ease up to speed after Play; 0 = instant
   keepAwake: boolean; // keep the screen on while playing or listening
@@ -122,6 +123,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   headingPause: 1,
   speakHeadings: false,
   stopAtSection: true,
+  logRuns: true,
   countdown: 3,
   smoothStart: 1,
   keepAwake: true,
