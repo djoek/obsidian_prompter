@@ -342,6 +342,7 @@ export class Prompter {
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
+    this.stage.dataset.spotlight = s.spotlightStyle;
     st.setProperty("--sf-note", s.noteColor);
     st.setProperty("--sf-italic", s.italicColor || "inherit");
     st.setProperty("--sf-bold", s.boldColor || "inherit");
@@ -865,6 +866,11 @@ export class Prompter {
   /** Returns true when the key was handled. */
   handleKey(e: KeyboardEvent): boolean {
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    // Escape pauses, and still does its usual job (leaving fullscreen, ...).
+    if (e.key === "Escape") {
+      if (this.playing) this.pause();
+      return false;
+    }
     const line = this.lineHeightPx();
     switch (e.key) {
       case " ":

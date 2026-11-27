@@ -2,6 +2,7 @@ import type { Binding } from "./inputs";
 
 export type Rotation = 0 | 90 | 180 | 270;
 export type MarginSide = "before" | "after" | "off";
+export type SpotlightStyle = "underline" | "colour";
 
 export interface PrompterSettings {
   // Typography
@@ -22,6 +23,7 @@ export interface PrompterSettings {
   eyeLineColor: string;
   nextColor: string; // pause helper background
   spotlightColor: string; // voice: the words right after the last one heard
+  spotlightStyle: SpotlightStyle; // underline keeps the text's own colours
   heardColor: string; // voice: words just heard, before they dim
   noteColor: string;
   italicColor: string; // "" = same as the text
@@ -97,6 +99,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   eyeLineColor: "#ff4d4d",
   nextColor: "#9be7a0",
   spotlightColor: "#ffffff",
+  spotlightStyle: "underline",
   heardColor: "#7ee8fa",
   noteColor: "#c3a6ff",
   italicColor: "",

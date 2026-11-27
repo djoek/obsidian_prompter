@@ -26,6 +26,7 @@ const CHOICES: Partial<Record<keyof PrompterSettings, readonly unknown[]>> = {
   rotation: [0, 90, 180, 270],
   textAlign: ["left", "center"],
   marginNotes: ["before", "after", "off"],
+  spotlightStyle: ["underline", "colour"],
 };
 
 // Language names (English, Dutch, native) for the languages the speech models

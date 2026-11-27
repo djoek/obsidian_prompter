@@ -63,6 +63,7 @@ treats it as a new plugin:
 | PageUp / PageDown | Half a screen back / forward |
 | + / − | Speed ±10 words per minute (saved) |
 | Home / End | First / last section |
+| Esc | Pause (also from the main window, when you go back to editing) |
 | H | Show/hide the status bar |
 | F | Fullscreen on/off (Esc also leaves) |
 | V | Voice tracking on/off |
@@ -301,7 +302,8 @@ word (the recognition is a moment behind; you track the exact word yourself):
 - **Heard:** words Souffleur has heard take the *heard* colour for a moment
   (1.5 s by default), then fade to dimmed.
 - **Spotlight:** the next words after those (7 by default), where you'll be
-  speaking any moment, in the *Spotlight* colour.
+  speaking any moment: underlined (keeps italic, bold and highlight colours),
+  or in the *Spotlight* colour (*Reading aids → Spotlight style*).
 - **Ahead:** the rest in your normal *Text* colour. Set it a little darker than
   the spotlight (for example 90% white, `#e6e6e6`) so the spotlight stands out.
 

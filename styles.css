@@ -161,10 +161,21 @@
 .sf-stage[data-voice] .sf-content {
   & [data-said] { opacity: 0.45; }
   & [data-said][data-heard] { opacity: 1; color: var(--sf-heard); }
-  /* Spotlight: the next words, where you'll be speaking; brighter than the
-     text further ahead. A ==highlight== keeps its own dark text. */
+  & mark [data-said][data-heard] { color: inherit; } /* stays readable on its highlight */
+  /* Spotlight: the next words, where you'll be speaking. */
+}
+/* Underline: the text keeps its own colours (italic, bold, highlight). */
+.sf-stage[data-voice][data-spotlight="underline"] .sf-content [data-next] {
+  text-decoration: underline var(--sf-spotlight) 0.07em;
+  text-underline-offset: 0.18em;
+}
+/* Colour: brighter than the text further ahead; a ==highlight== keeps its
+   own dark text. */
+.sf-stage[data-voice][data-spotlight="colour"] .sf-content {
   & [data-next] { color: var(--sf-spotlight); }
   & mark [data-next] { color: inherit; }
+}
+.sf-stage[data-voice] .sf-content {
   /* Colour only (bold would make words wider and the text jump). The fade
      back is slower than the highlight, so it reads as "heard, now done". */
   & span { transition: color 0.8s, opacity 0.8s; }

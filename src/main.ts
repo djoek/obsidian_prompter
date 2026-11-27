@@ -6,6 +6,7 @@ import {
   looksLikeOurs,
   migrateSettings,
   type MarginSide,
+  type SpotlightStyle,
   type PrompterSettings,
   type Rotation,
 } from "./settings";
@@ -95,6 +96,13 @@ export default class SouffleurPlugin extends Plugin {
         if (!checking) this.resetVoice();
         return true;
       },
+    });
+
+    // Escape in the main window (going back to editing) pauses prompters too.
+    // It doesn't consume the key, so Escape keeps its normal job there.
+    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      for (const v of this.views()) if (v.prompter?.isPlaying) v.prompter.pause();
     });
 
     this.app.workspace.onLayoutReady(() => {
@@ -701,6 +709,15 @@ class SouffleurSettingTab extends PluginSettingTab {
 
     color("Margin notes", "noteColor");
     color("Heard words (voice tracking)", "heardColor");
+    new Setting(containerEl)
+      .setName("Spotlight style")
+      .setDesc("How the next words are marked. Underline keeps the text's own colours (italic, bold, highlight).")
+      .addDropdown((d) =>
+        d
+          .addOptions({ underline: "Underline", colour: "Colour" })
+          .setValue(s.spotlightStyle)
+          .onChange((v) => set({ spotlightStyle: v as SpotlightStyle })),
+      );
     color("Spotlight (voice tracking)", "spotlightColor");
     slider(
       "Spotlight words",
