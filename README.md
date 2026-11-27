@@ -4,19 +4,29 @@ A teleprompter that reads a note straight from your vault and shows it in a
 separate window, which you drag to the prompter display (for example an Elgato
 Prompter over DisplayLink) and make fullscreen.
 
-## Install (manual, from source)
+## Install
+
+### With BRAT (recommended: updates itself)
+
+1. Install the community plugin **BRAT** (Obsidian42 - BRAT) and enable it.
+2. Command palette → **BRAT: Add a beta plugin for testing**.
+3. Paste `https://github.com/djoek/obsidian_prompter` and confirm.
+4. Enable **Teleprompter** under *Settings → Community plugins*.
+
+BRAT downloads `main.js`, `manifest.json` and `styles.css` from the latest
+GitHub release, and checks for updates.
+
+### From source
 
 ```bash
 cd "<your vault>/.obsidian/plugins"
-git clone <this repo> teleprompter
+git clone https://github.com/djoek/obsidian_prompter teleprompter
 cd teleprompter
 bun install
 bun run build
 ```
 
-Then in Obsidian: *Settings → Community plugins → Installed plugins*, enable
-**Teleprompter**. Obsidian needs three files in the plugin folder:
-`manifest.json`, `main.js` (made by the build) and `styles.css`.
+Then enable **Teleprompter** under *Settings → Community plugins*.
 
 ## Use
 
@@ -80,6 +90,19 @@ bun run watch      # rebuild main.js on every change
 bun test           # parser tests
 bun run typecheck
 ```
+
+### Releasing
+
+1. Raise `version` in `manifest.json` (and `package.json`), commit, push.
+2. Tag that exact version, without a `v`, and push the tag:
+
+   ```bash
+   git tag 0.1.1 && git push origin 0.1.1
+   ```
+
+`.github/workflows/release.yml` then tests, builds and publishes a release with
+`main.js`, `manifest.json` and `styles.css`. It fails if the tag and the
+manifest version differ, because BRAT and Obsidian compare those.
 
 `src/parser.ts` (Markdown → blocks and sections) and `src/prompter.ts` (the
 scroll engine) don't import Obsidian, so they can be tested and tried outside
