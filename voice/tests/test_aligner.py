@@ -127,3 +127,10 @@ def test_small_corrections_backwards_are_ignored():
     assert a.update(normalize_text("met een teleprompter werk en hoe je")) == 17
     assert a.update(normalize_text("ik met een teleprompter werk en")) is None
     assert a.word == 17
+
+
+def test_bench_script_words_skip_margin_notes():
+    from souffleur_voice.bench import script_words
+
+    md = "Dat was het^[glimlach] voor vandaag[^1].\n\n[^1]: niet\n    uitspreken\n"
+    assert script_words(md) == ["Dat", "was", "het", "voor", "vandaag."]

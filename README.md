@@ -140,6 +140,41 @@ changes the note.
 - **Smooth start:** the text eases up to speed over a second (*Smooth start*).
 - **Keep the screen awake** while playing or listening (on by default).
 
+## Margin notes
+
+Footnotes in your script show in the margin of the prompter, level with the
+line they belong to: stage directions, pronunciation, anything you want to
+see at that moment.
+
+```markdown
+Dat was het voor vandaag.^[glimlach, kort pauzeren]
+Ik werk met Nvidia[^nv] kaarten.
+
+[^nv]: en-VID-ee-uh
+```
+
+- `^[…]` is an inline note; `[^id]` refers to a `[^id]: …` definition anywhere
+  in the note (indented lines continue it). Both are standard Obsidian footnotes.
+- Notes aren't spoken: they don't count for the timing and voice tracking
+  ignores them. A note on a line of its own (`^[pauze]`) appears at that spot.
+- *Margin notes → Position*: **Before sentence** (the side where lines start)
+  or **After sentence**, as you read it, also when mirrored. Or *Hidden*.
+- Notes stay visible ahead of the eye line, and dim with the text you've read.
+- `%% comments %%` stay completely hidden: notes to yourself while writing.
+
+## Reading aids
+
+All off by default, under *Reading aids* in the settings (and per note in
+`souffleur:` frontmatter):
+
+- **Focus band:** keeps a number of lines from the eye line down bright and
+  dims the rest.
+- **Bold word starts:** the first letters of each word a little bolder.
+- **Pause helper:** in voice mode, after a few seconds of silence, the next
+  words light up so your eye finds the way back.
+- **Words per line** (under *Text*): the font size follows the screen width so
+  about that many words fit on a line, also after rotating.
+
 ## Fonts and spacing
 
 The **Font** setting lists the fonts it finds on your computer. Fonts designed

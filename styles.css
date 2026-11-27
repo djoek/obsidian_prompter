@@ -32,6 +32,7 @@
 
 .sf-content {
   position: relative;
+  box-sizing: border-box; /* the notes margin comes out of the text width */
   width: var(--sf-width);
   margin: 0 auto;
   padding-bottom: 100vh;
@@ -217,4 +218,67 @@ progress.sf-download {
   }
   & td button:hover { color: var(--text-accent); }
   & td button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+}
+
+/* Margin notes (^[…] footnotes): a column on the side where sentences start
+   ("before") or end ("after"), as the reader sees it. Mirroring flips the whole
+   picture, so this stays right through the glass. */
+.sf-content[data-margin="before"] { padding-left: var(--sf-margin); }
+.sf-content[data-margin="after"] { padding-right: var(--sf-margin); }
+.sf-notes {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--sf-margin) - 0.6em);
+  pointer-events: none;
+}
+.sf-content[data-margin="after"] .sf-notes { inset: 0 0 0 auto; }
+.sf-content[data-margin="off"] .sf-notes,
+[hidden].sf-notes { display: none; }
+.sf-note {
+  position: absolute;
+  inset-inline: 0;
+  font-size: 0.42em;
+  line-height: 1.3;
+  color: var(--sf-note);
+  font-style: italic;
+  overflow-wrap: break-word; /* split a word only if it can't fit at all */
+  transition: opacity 0.4s;
+}
+.sf-content[data-margin="before"] .sf-note { text-align: right; }
+.sf-content[data-margin="after"] .sf-note { text-align: left; }
+.sf-stage[data-dim-read] .sf-note[data-read] { opacity: 0.3; }
+.sf-anchor { display: inline; }
+
+/* Focus band: everything outside N lines from the eye line is dimmed. */
+.sf-band {
+  --line: calc(var(--sf-size) * var(--sf-line));
+  --top: calc(var(--sf-eye-pos) - var(--line) * 0.35);
+  --bottom: calc(var(--sf-eye-pos) + var(--line) * var(--sf-band-lines));
+  --dim: color-mix(in srgb, var(--sf-bg) 72%, transparent);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--dim) 0,
+    var(--dim) calc(var(--top) - var(--line) * 0.6),
+    transparent var(--top),
+    transparent var(--bottom),
+    var(--dim) calc(var(--bottom) + var(--line) * 0.6),
+    var(--dim) 100%
+  );
+}
+[hidden].sf-band { display: none; }
+
+/* Bold word starts */
+.sf-content .sf-start { font-weight: 800; }
+
+/* Pause helper: after a silence in voice mode, the next words get a soft
+   background so your eye finds the way back. */
+.sf-stage[data-voice][data-paused] .sf-content [data-next] {
+  background: color-mix(in srgb, var(--sf-next) 28%, transparent);
+  border-radius: 0.12em;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sf-stage[data-voice] .sf-content [data-next] { transition: background 0.6s, color 0.25s; }
 }

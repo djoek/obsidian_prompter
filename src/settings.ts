@@ -1,4 +1,5 @@
 export type Rotation = 0 | 90 | 180 | 270;
+export type MarginSide = "before" | "after" | "off";
 
 export interface PrompterSettings {
   // Typography
@@ -9,6 +10,7 @@ export interface PrompterSettings {
   wordSpacing: number; // em
   textWidth: number; // % of the prompter width
   textAlign: "left" | "center";
+  wordsPerLine: number; // 0 = use fontSize; else the size follows the width
 
   // Colours
   textColor: string;
@@ -17,6 +19,7 @@ export interface PrompterSettings {
   markColor: string;
   eyeLineColor: string;
   nextColor: string;
+  noteColor: string;
 
   // Reading aids
   eyeLine: number; // % from the top where you read
@@ -26,6 +29,11 @@ export interface PrompterSettings {
   /** Status bar: time in this section, and how long it normally takes. */
   showSectionTimer: boolean;
   nextWords: number; // voice tracking: how many words after the current one stand out
+  marginNotes: MarginSide; // where ^[notes] appear, as the reader sees it
+  marginWidth: number; // % of the text width
+  focusBand: number; // lines kept bright from the eye line down; 0 = off
+  boldStarts: boolean; // first letters of each word a little bolder
+  pauseHint: number; // voice: seconds of silence before the next words light up; 0 = off
 
   // Pacing
   wpm: number; // base words per minute
@@ -66,6 +74,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   wordSpacing: 0,
   textWidth: 90,
   textAlign: "left",
+  wordsPerLine: 0,
 
   textColor: "#ffffff",
   backgroundColor: "#000000",
@@ -73,6 +82,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   markColor: "#ffd166",
   eyeLineColor: "#ff4d4d",
   nextColor: "#7ee8fa",
+  noteColor: "#c3a6ff",
 
   eyeLine: 30,
   showEyeLine: true,
@@ -80,6 +90,11 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   showHud: true,
   showSectionTimer: true,
   nextWords: 4,
+  marginNotes: "before",
+  marginWidth: 25,
+  focusBand: 0,
+  boldStarts: false,
+  pauseHint: 0,
 
   wpm: 140,
   headingSpeed: 1,

@@ -20,6 +20,9 @@ def script_words(markdown: str) -> list[str]:
     """Rough Markdown → words, close to what the plugin shows."""
     text = re.sub(r"\A---\n.*?\n---\n", "", markdown, flags=re.S)  # frontmatter
     text = re.sub(r"%%.*?%%|<!--.*?-->", " ", text, flags=re.S)  # comments
+    # Margin notes aren't spoken: footnote definitions, ^[inline] and [^refs].
+    text = re.sub(r"^\[\^[^\]\s]+\]:.*(?:\n(?: {2,}|\t)\S.*)*", "", text, flags=re.M)
+    text = re.sub(r"\^\[(?:[^\[\]]|\[[^\[\]]*\])*\]|\[\^[^\]\s]+\]", "", text)
     text = re.sub(r"^\s*(#{1,6}|[-*+]|\d+[.)]|>)\s+", "", text, flags=re.M)
     text = re.sub(r"^\s*([-*_])(\s*\1){2,}\s*$", "", text, flags=re.M)  # ---
     text = re.sub(r"\*\*|__|==|~~|\*|`", "", text)

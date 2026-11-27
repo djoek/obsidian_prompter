@@ -51,6 +51,10 @@ export class Prompter {
   private script: Script = { blocks: [], sections: [] };
   private els: HTMLElement[] = [];
   private wordEls: HTMLElement[] = [];
+  /** Margin notes: the note, its anchor in the text, and its block. */
+  private notes: { el: HTMLElement; anchor: HTMLElement; block: number }[] = [];
+  private notesEl: HTMLElement;
+  private bandEl: HTMLElement;
   /** Index of the first word in each block. */
   private blockWord: number[] = [];
   private tops: number[] = [];
@@ -93,6 +97,12 @@ export class Prompter {
 
   private wakeLock: WakeLockSentinel | null = null;
 
+  /** Voice mode: when the last position arrived (pause helper). */
+  private lastHeardAt = 0;
+
+  /** Font size in use: the setting, or fitted to "words per line". */
+  private fontPx = 0;
+
   constructor(
     host: HTMLElement,
     private settings: PrompterSettings,
@@ -106,6 +116,8 @@ export class Prompter {
     this.stage = this.el("div", "sf-stage", host);
     this.rotor = this.el("div", "sf-rotor", this.stage);
     this.content = this.el("article", "sf-content", this.rotor);
+    this.notesEl = this.el("div", "sf-notes", this.content);
+    this.bandEl = this.el("div", "sf-band", this.rotor);
     this.eye = this.el("div", "sf-eyeline", this.rotor);
     this.hud = this.el("footer", "sf-hud", this.rotor);
     this.toastEl = this.el("output", "sf-toast", this.rotor);
@@ -120,6 +132,8 @@ export class Prompter {
     this.diagEl = this.el("pre", "sf-diag", this.rotor);
     this.diagEl.hidden = true;
     this.applySettings(settings);
+    // Web fonts change line widths once they load: lay out again then.
+    void this.doc.fonts?.ready.then(() => this.layout());
     this.schedule();
   }
 
@@ -158,6 +172,8 @@ export class Prompter {
     this.script = script;
     this.computeLengths();
     this.render();
+    this.content.dataset.margin = this.notes.length ? this.settings.marginNotes : "off";
+    this.geometry();
     this.measure();
     if (anchor) {
       this.pos = this.fromAnchor(anchor);
@@ -189,7 +205,9 @@ export class Prompter {
   }
 
   private render(): void {
-    this.content.replaceChildren();
+    this.content.replaceChildren(this.notesEl);
+    this.notesEl.replaceChildren();
+    this.notes = [];
     this.els = [];
     this.wordEls = [];
     this.blockWord = [];
@@ -225,7 +243,7 @@ export class Prompter {
           el = this.el("p", "", sectionEl);
       }
       this.blockWord.push(this.wordIndex);
-      this.renderRuns(el, block.runs);
+      this.renderRuns(el, block.runs, this.els.length);
       this.els.push(el);
     }
   }
@@ -237,8 +255,16 @@ export class Prompter {
 
   /** Words become <span data-w="n">: ready for voice-tracked highlighting. */
   private wordIndex = 0;
-  private renderRuns(parent: HTMLElement, runs: Run[]): void {
+  private renderRuns(parent: HTMLElement, runs: Run[], block: number): void {
     for (const run of runs) {
+      if (run.note !== undefined) {
+        // An empty marker in the text; the note itself goes in the margin.
+        const anchor = this.el("span", "sf-anchor", parent);
+        const el = this.el("aside", "sf-note", this.notesEl);
+        el.textContent = run.note;
+        this.notes.push({ el, anchor, block });
+        continue;
+      }
       let target = parent;
       if (run.bold) target = this.el("strong", "", target);
       if (run.italic) target = this.el("em", "", target);
@@ -251,7 +277,7 @@ export class Prompter {
         } else {
           const span = this.el("span", "", target);
           span.dataset.w = String(this.wordIndex++);
-          span.textContent = part;
+          this.fillWord(span, part);
           this.wordEls.push(span);
         }
       }
@@ -261,6 +287,7 @@ export class Prompter {
   // ── Layout ─────────────────────────────────────────────────────────────
 
   applySettings(s: PrompterSettings): void {
+    const restyle = this.settings.boldStarts !== s.boldStarts;
     this.settings = s;
     const st = this.stage.style;
     st.setProperty("--sf-font", s.fontFamily);
@@ -280,6 +307,12 @@ export class Prompter {
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
+    st.setProperty("--sf-note", s.noteColor);
+    st.setProperty("--sf-band-lines", String(s.focusBand));
+    this.content.dataset.margin = this.notes.length ? s.marginNotes : "off";
+    this.notesEl.hidden = s.marginNotes === "off";
+    this.bandEl.hidden = s.focusBand <= 0;
+    if (restyle) this.rerender();
     this.computeLengths();
     this.syncWake();
     this.layout();
@@ -288,6 +321,15 @@ export class Prompter {
 
   /** Size and orient the rotor. Rotation by 90/270 swaps width and height. */
   private layout(): void {
+    const anchor = this.anchor();
+    this.geometry();
+    this.measure();
+    if (anchor) this.pos = this.fromAnchor(anchor);
+    this.draw();
+  }
+
+  /** Rotation, flips, notes margin and font size, from the stage size. */
+  private geometry(): void {
     const w = this.stage.clientWidth;
     const h = this.stage.clientHeight;
     const { rotation, flipH, flipV } = this.settings;
@@ -298,15 +340,54 @@ export class Prompter {
     this.rotor.style.transform =
       `translate(-50%, -50%) rotate(${rotation}deg) ` +
       `scale(${flipH ? -1 : 1}, ${flipV ? -1 : 1})`;
+    const rotorWidth = sideways ? h : w;
+    this.stage.style.setProperty("--sf-margin", `${this.marginPx(rotorWidth)}px`);
+    this.fontPx = this.fitFont(rotorWidth);
+    this.stage.style.setProperty("--sf-size", `${this.fontPx}px`);
+  }
+
+  /** A word, optionally with its first letters a little bolder. */
+  private fillWord(span: HTMLElement, word: string): void {
+    if (!this.settings.boldStarts || word.length < 2) {
+      span.textContent = word;
+      return;
+    }
+    const letters = [...word];
+    const n = letters.length <= 3 ? 1 : Math.ceil(letters.length * 0.4);
+    this.el("b", "sf-start", span).textContent = letters.slice(0, n).join("");
+    span.append(letters.slice(n).join(""));
+  }
+
+  /** Render again in place (a setting changed how words look). */
+  private rerender(): void {
     const anchor = this.anchor();
+    const marked = this.marked;
+    const voiceWord = this.voiceWord;
+    this.render();
     this.measure();
     if (anchor) this.pos = this.fromAnchor(anchor);
-    this.draw();
+    this.marked = -1;
+    this.highlight(marked, marked === voiceWord && voiceWord >= 0);
+    this.voiceWord = voiceWord;
+    this.updateRead();
   }
 
   private measure(): void {
     this.tops = this.els.map((el) => this.offsetIn(el));
+    this.placeNotes();
     this.total = this.content.scrollHeight;
+  }
+
+  /** Each note level with its anchor's line, pushed down if the note above
+   * would overlap it. */
+  private placeNotes(): void {
+    let below = 0;
+    const gap = this.lineHeightPx() * 0.15;
+    for (const { el, anchor } of this.notes) {
+      const top = Math.max(this.offsetIn(anchor), below);
+      el.style.top = `${top}px`;
+      below = top + el.offsetHeight + gap;
+    }
   }
 
   /** y of `el` relative to the content, regardless of nesting. */
@@ -325,7 +406,32 @@ export class Prompter {
   }
 
   private lineHeightPx(): number {
-    return this.settings.fontSize * this.settings.lineHeight;
+    return (this.fontPx || this.settings.fontSize) * this.settings.lineHeight;
+  }
+
+  /** Width of the notes margin: a share of the text block, if notes show. */
+  private marginPx(rotorWidth: number): number {
+    const s = this.settings;
+    if (this.content.dataset.margin === "off" || s.marginNotes === "off") return 0;
+    return (rotorWidth * s.textWidth * s.marginWidth) / 10000;
+  }
+
+  /**
+   * "Words per line": measure how wide this font's letters are on average,
+   * then pick the size at which that many words (about 6 characters each,
+   * with the space) fill the text column.
+   */
+  private fitFont(rotorWidth: number): number {
+    const s = this.settings;
+    if (s.wordsPerLine <= 0) return s.fontSize;
+    const column = (rotorWidth * s.textWidth) / 100 - this.marginPx(rotorWidth);
+    const ctx = this.doc.createElement("canvas").getContext("2d");
+    if (!ctx) return s.fontSize;
+    ctx.font = `100px ${s.fontFamily}`;
+    const sample = "Hallo en welkom, vandaag vertel ik je waarom dit zo werkt.";
+    const perChar = ctx.measureText(sample).width / sample.length / 100;
+    const size = column / (s.wordsPerLine * 6 * perChar);
+    return Math.max(12, Math.min(300, Math.floor(size)));
   }
 
   private draw(): void {
@@ -399,6 +505,7 @@ export class Prompter {
       this.updateHud();
     }
     this.updateTimer(dt);
+    this.updatePauseHint(now);
     this.draw();
   };
 
@@ -471,6 +578,16 @@ export class Prompter {
     this.countdownUntil = 0;
     this.countdownEl.hidden = true;
     this.playStart = now;
+  }
+
+  /** Voice mode: after a silence, light up the words to say next. */
+  private updatePauseHint(now: number): void {
+    const wait = this.settings.pauseHint * 1000;
+    const paused =
+      wait > 0 && this.voice && this.playing && this.lastHeardAt > 0 && now - this.lastHeardAt > wait;
+    if (paused !== this.stage.hasAttribute("data-paused")) {
+      this.stage.toggleAttribute("data-paused", paused);
+    }
   }
 
   // ── Section timer ──────────────────────────────────────────────────────
@@ -722,6 +839,7 @@ export class Prompter {
     if (!this.voice || !this.playing || !this.wordEls[i]) return;
     this.highlight(i, true);
     this.voiceWord = i;
+    this.lastHeardAt = this.win.performance.now();
   }
 
   setVoiceInfo(text: string): void {
@@ -768,6 +886,7 @@ export class Prompter {
 
   private updateRead(): void {
     this.els.forEach((el, i) => el.toggleAttribute("data-read", i < this.current));
+    for (const n of this.notes) n.el.toggleAttribute("data-read", n.block < this.current);
   }
 
   private updateHud(): void {

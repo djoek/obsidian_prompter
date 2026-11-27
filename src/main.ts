@@ -5,6 +5,7 @@ import {
   VOICE_COMMAND,
   looksLikeOurs,
   migrateSettings,
+  type MarginSide,
   type PrompterSettings,
   type Rotation,
 } from "./settings";
@@ -351,7 +352,8 @@ class SouffleurSettingTab extends PluginSettingTab {
       | "headingColor"
       | "markColor"
       | "eyeLineColor"
-      | "nextColor";
+      | "nextColor"
+      | "noteColor";
     const color = (name: string, key: ColorKey) =>
       new Setting(containerEl)
         .setName(name)
@@ -398,6 +400,14 @@ class SouffleurSettingTab extends PluginSettingTab {
         t.setValue(s.fontFamily).onChange((v) => set({ fontFamily: v }));
       });
     slider("Font size", "fontSize", 16, 160, 2, "Pixels.");
+    slider(
+      "Words per line",
+      "wordsPerLine",
+      0,
+      12,
+      1,
+      "0: use Font size. Otherwise the size follows the screen width, so about this many words fit on a line.",
+    );
     slider("Line height", "lineHeight", 1, 2, 0.05);
     slider("Letter spacing", "letterSpacing", 0, 0.2, 0.01, "Extra space between letters, in em.");
     slider("Word spacing", "wordSpacing", 0, 0.6, 0.02, "Extra space between words, in em.");
@@ -430,6 +440,7 @@ class SouffleurSettingTab extends PluginSettingTab {
     );
 
     color("Next words (voice tracking)", "nextColor");
+    color("Margin notes", "noteColor");
     slider(
       "How many next words to highlight",
       "nextWords",
@@ -438,6 +449,42 @@ class SouffleurSettingTab extends PluginSettingTab {
       1,
       "With voice tracking: the words right after the one you are saying.",
     );
+
+    slider(
+      "Focus band",
+      "focusBand",
+      0,
+      8,
+      1,
+      "Lines kept bright from the eye line down; the rest is dimmed. 0: off.",
+    );
+    toggle("Bold word starts", "boldStarts", "The first letters of each word a little bolder.");
+    slider(
+      "Pause helper",
+      "pauseHint",
+      0,
+      10,
+      1,
+      "Voice tracking: after this many seconds of silence, the next words light up. 0: off.",
+    );
+
+    new Setting(containerEl).setName("Margin notes").setHeading();
+    containerEl.createEl("p", {
+      text:
+        "Footnotes in your script appear in the margin, level with their line: " +
+        "^[smile] inline, or [^1] with a [^1]: definition. They aren't spoken, so " +
+        "they don't count for timing or voice tracking. %% comments stay hidden.",
+    });
+    new Setting(containerEl)
+      .setName("Position")
+      .setDesc("As you read it, also when mirrored.")
+      .addDropdown((d) =>
+        d
+          .addOptions({ before: "Before sentence", after: "After sentence", off: "Hidden" })
+          .setValue(s.marginNotes)
+          .onChange((v) => set({ marginNotes: v as MarginSide })),
+      );
+    slider("Margin width", "marginWidth", 10, 40, 1, "Percentage of the text width.");
 
     new Setting(containerEl).setName("Pacing").setHeading();
     slider("Speed", "wpm", 40, 400, 5, "Words per minute. Change live with + and −.");

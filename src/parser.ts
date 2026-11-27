@@ -3,6 +3,10 @@
 // We only need a *small* subset of Markdown: block types (to drive scroll
 // speed), inline emphasis (to render), word counts (to pace), and source line
 // numbers (to open "at cursor"). A line scanner is enough for that.
+//
+// Footnotes become margin notes: `^[inline note]`, or `[^id]` with a
+// `[^id]: text` definition anywhere in the note. They are not spoken, so they
+// add no words (no timing, no voice matching).
 
 export type BlockType = "heading" | "paragraph" | "list" | "quote" | "separator";
 
@@ -12,6 +16,8 @@ export interface Run {
   italic: boolean;
   mark: boolean;
   strike: boolean;
+  /** A margin note anchored at this spot (then `text` is ""). */
+  note?: string;
 }
 
 export interface Block {
@@ -41,6 +47,15 @@ const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const LIST = /^[ \t]*(?:([-*+])|(\d+)[.)])[ \t]+(?:\[.\][ \t]+)?(.*)$/;
 const QUOTE = /^ {0,3}>[ \t]?(.*)$/;
 const FENCE = /^ {0,3}(```|~~~)/;
+const FOOTNOTE_DEF = /^\[\^([^\]\s]+)\]:[ \t]?(.*)$/;
+// `^[text]`, allowing one level of [brackets] inside (e.g. a [link](url)).
+const INLINE_NOTE = /\^\[((?:[^[\]]|\[[^[\]]*\])*)\]/g;
+const NOTE_REF = /\[\^([^\]\s]+)\]/g;
+// Notes are swapped for these placeholders (Unicode private use characters,
+// which don't occur in normal text) while the rest of the line is cleaned up.
+const NOTE_OPEN = "\uE000";
+const NOTE_CLOSE = "\uE001";
+const PLACEHOLDER = /(\uE000\d+\uE001)/;
 
 /** Replace comments with blank lines, so line numbers stay correct. */
 function stripComments(src: string): string {
@@ -66,7 +81,8 @@ function simplifyInline(text: string): string {
 
 const MARKERS = ["**", "__", "==", "~~", "*"] as const;
 type Marker = (typeof MARKERS)[number];
-const FLAG: Record<Marker, keyof Omit<Run, "text">> = {
+type Flag = "bold" | "italic" | "mark" | "strike";
+const FLAG: Record<Marker, Flag> = {
   "**": "bold",
   __: "bold",
   "==": "mark",
@@ -74,16 +90,34 @@ const FLAG: Record<Marker, keyof Omit<Run, "text">> = {
   "*": "italic",
 };
 
-/** Split text into styled runs. A marker only opens if it is closed later. */
-export function parseInline(raw: string): Run[] {
-  const text = simplifyInline(raw);
-  const tokens = text.split(/(\*\*|__|==|~~|\*)/).filter((t) => t !== "");
+/** Plain text of a margin note: links resolved, formatting marks removed. */
+function noteText(raw: string): string {
+  return simplifyInline(raw).replace(/\*\*|__|==|~~|\*/g, "").trim();
+}
+
+/** Split text into styled runs. A marker only opens if it is closed later.
+ * `notes` resolves `[^id]` references; unknown ones are left out. */
+export function parseInline(raw: string, notes: Map<string, string> = new Map()): Run[] {
+  const found: string[] = [];
+  const hold = (text: string) => `${NOTE_OPEN}${found.push(noteText(text)) - 1}${NOTE_CLOSE}`;
+  const withNotes = raw
+    .replace(INLINE_NOTE, (_, t: string) => hold(t))
+    .replace(NOTE_REF, (_, id: string) => {
+      const def = notes.get(id);
+      return def === undefined ? "" : hold(def);
+    });
+  const text = simplifyInline(withNotes);
+  const tokens = text
+    .split(PLACEHOLDER)
+    .flatMap((part) => (PLACEHOLDER.test(part) ? [part] : part.split(/(\*\*|__|==|~~|\*)/)))
+    .filter((t) => t !== "");
   const state = { bold: false, italic: false, mark: false, strike: false };
   const runs: Run[] = [];
   const push = (t: string) => {
     const last = runs.at(-1);
     if (
       last &&
+      last.note === undefined &&
       last.bold === state.bold &&
       last.italic === state.italic &&
       last.mark === state.mark &&
@@ -95,6 +129,11 @@ export function parseInline(raw: string): Run[] {
     }
   };
   tokens.forEach((tok, i) => {
+    if (PLACEHOLDER.test(tok)) {
+      const note = found[Number(tok.slice(1, -1))];
+      if (note) runs.push({ text: "", ...state, note });
+      return;
+    }
     const m = MARKERS.find((x) => x === tok);
     if (m === undefined) return push(tok);
     const flag = FLAG[m];
@@ -113,8 +152,33 @@ export function countWords(runs: Run[]): number {
   return runs.reduce((n, r) => n + (r.text.match(/\S+/g)?.length ?? 0), 0);
 }
 
+/**
+ * Collect `[^id]: text` definitions (with indented continuation lines) and
+ * blank those lines, so they don't show and line numbers stay right.
+ */
+function takeFootnotes(lines: string[]): Map<string, string> {
+  const defs = new Map<string, string>();
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (FENCE.test(line)) inFence = !inFence;
+    if (inFence) continue;
+    const m = line.match(FOOTNOTE_DEF);
+    if (!m) continue;
+    const parts = [m[2] ?? ""];
+    lines[i] = "";
+    while (i + 1 < lines.length && /^(?: {2,}|\t)\S/.test(lines[i + 1] ?? "")) {
+      parts.push((lines[i + 1] ?? "").trim());
+      lines[++i] = "";
+    }
+    defs.set(m[1]!, parts.join(" ").trim());
+  }
+  return defs;
+}
+
 export function parseScript(source: string): Script {
   const lines = stripComments(source.replace(/\r\n?/g, "\n")).split("\n");
+  const notes = takeFootnotes(lines);
   const blocks: Block[] = [];
   const sections: Section[] = [];
   let section = 0;
@@ -133,9 +197,10 @@ export function parseScript(source: string): Script {
   let bufLine = 0;
 
   const add = (type: BlockType, level: number, text: string, line: number) => {
-    const runs = type === "separator" ? [] : parseInline(text);
+    const runs = type === "separator" ? [] : parseInline(text, notes);
     const words = countWords(runs);
-    if (type !== "separator" && words === 0) return;
+    // Keep a block with no words if it carries a margin note (`^[pause]` alone).
+    if (type !== "separator" && words === 0 && !runs.some((r) => r.note)) return;
     if (type !== "separator" && !sectionHasContent) {
       sections.push({ firstBlock: blocks.length, title: "" });
       sectionHasContent = true;
