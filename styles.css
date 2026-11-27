@@ -157,14 +157,14 @@
 }
 
 /* Voice mode: unread text stays bright; words just heard take the "heard"
-   colour, then fade to dimmed. The current word is underlined. */
+   colour, then fade to dimmed. */
 .sf-stage[data-voice] .sf-content {
   & [data-said] { opacity: 0.45; }
   & [data-said][data-heard] { opacity: 1; color: var(--sf-heard); }
-  & [data-now] {
-    text-decoration: underline var(--sf-eye) 0.08em;
-    text-underline-offset: 0.15em;
-  }
+  /* Spotlight: the next words, where you'll be speaking; brighter than the
+     text further ahead. A ==highlight== keeps its own dark text. */
+  & [data-next] { color: var(--sf-spotlight); }
+  & mark [data-next] { color: inherit; }
   /* Colour only (bold would make words wider and the text jump). The fade
      back is slower than the highlight, so it reads as "heard, now done". */
   & span { transition: color 0.8s, opacity 0.8s; }

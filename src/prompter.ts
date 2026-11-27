@@ -192,7 +192,7 @@ export class Prompter {
     if (this.voiceWord >= this.wordEls.length) this.voiceWord = -1;
     const marked = Math.min(this.marked, this.wordEls.length - 1);
     this.marked = -1;
-    this.highlight(marked, marked === this.voiceWord);
+    this.highlight(marked);
     this.updateRead();
     this.updateHud();
     this.announce();
@@ -320,6 +320,7 @@ export class Prompter {
     st.setProperty("--sf-eye", s.eyeLineColor);
     st.setProperty("--sf-next", s.nextColor);
     st.setProperty("--sf-heard", s.heardColor);
+    st.setProperty("--sf-spotlight", s.spotlightColor);
     st.setProperty("--sf-eye-pos", `${s.eyeLine}%`);
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
@@ -389,7 +390,7 @@ export class Prompter {
     this.measure();
     if (anchor) this.pos = this.fromAnchor(anchor);
     this.marked = -1;
-    this.highlight(marked, marked === voiceWord && voiceWord >= 0);
+    this.highlight(marked);
     this.voiceWord = voiceWord;
     this.updateRead();
     if (renumber) this.announce();
@@ -731,7 +732,7 @@ export class Prompter {
     this.current = i;
     const word = this.blockWord[i] ?? 0;
     this.clearHeard();
-    this.highlight(word - 1, false);
+    this.highlight(word - 1);
     this.voiceWord = -1;
     this.callbacks.onSeek?.(word);
     if (animate) {
@@ -879,11 +880,13 @@ export class Prompter {
     if (active === this.voice) return;
     this.voice = active;
     this.stage.toggleAttribute("data-voice", active);
-    if (active) this.play();
-    else {
+    if (active) {
+      this.play();
+      this.highlight(this.marked); // place the spotlight before the first word is heard
+    } else {
       this.pause();
       this.clearHeard();
-      this.highlight(-1, false);
+      this.highlight(-1);
       this.voiceWord = -1;
     }
     this.updateHud();
@@ -901,7 +904,7 @@ export class Prompter {
         this.heard.push({ word: w, at });
       }
     }
-    this.highlight(i, true);
+    this.highlight(i);
     this.voiceWord = i;
     this.lastHeardAt = this.win.performance.now();
   }
@@ -928,17 +931,15 @@ export class Prompter {
    * Words up to `now` get data-said, later ones lose it. Only the range that
    * changed is touched, so a step of a few words costs a few DOM writes.
    */
-  private highlight(now: number, showNow: boolean): void {
+  private highlight(now: number): void {
     const before = this.marked;
     for (let w = Math.max(0, Math.min(now, before) + 1); w <= Math.max(now, before); w++) {
       this.wordEls[w]?.toggleAttribute("data-said", w <= now);
     }
-    this.stage.querySelector("[data-now]")?.removeAttribute("data-now");
-    if (showNow) this.wordEls[now]?.setAttribute("data-now", "");
-    // Pause helper: the words to say next, shown only after a silence.
-    // (A handful of elements: just clear and set them again.)
+    // Spotlight: the words right after the last one heard, where you'll be
+    // speaking any moment. (A handful of elements: clear and set again.)
     for (const el of this.stage.querySelectorAll("[data-next]")) el.removeAttribute("data-next");
-    if (this.voice && this.settings.pauseHint > 0) {
+    if (this.voice) {
       for (let w = now + 1; w <= now + this.settings.nextWords; w++) {
         this.wordEls[w]?.setAttribute("data-next", "");
       }

@@ -575,6 +575,7 @@ class SouffleurSettingTab extends PluginSettingTab {
       | "eyeLineColor"
       | "nextColor"
       | "heardColor"
+      | "spotlightColor"
       | "noteColor";
     const color = (name: string, key: ColorKey) =>
       new Setting(containerEl)
@@ -687,6 +688,15 @@ class SouffleurSettingTab extends PluginSettingTab {
 
     color("Margin notes", "noteColor");
     color("Heard words (voice tracking)", "heardColor");
+    color("Spotlight (voice tracking)", "spotlightColor");
+    slider(
+      "Spotlight words",
+      "nextWords",
+      0,
+      15,
+      1,
+      "The words right after the last one heard, where you'll be speaking: shown in the Spotlight colour. Tip: set Text a little darker (e.g. 90% white) so they stand out. 0: off.",
+    );
     slider(
       "Keep heard words coloured",
       "heardHold",
@@ -711,9 +721,8 @@ class SouffleurSettingTab extends PluginSettingTab {
       0,
       10,
       1,
-      "Voice tracking: when the microphone has been silent this many seconds, the next words light up. 0: off.",
+      "Voice tracking: when the microphone has been silent this many seconds, the spotlight words get a background. 0: off.",
     );
-    slider("Pause helper: words", "nextWords", 1, 10, 1, "How many of the next words light up.");
     color("Pause helper colour", "nextColor");
 
     new Setting(containerEl).setName("Margin notes").setHeading();

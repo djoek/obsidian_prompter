@@ -196,8 +196,8 @@ All off by default, under *Reading aids* in the settings (and per note in
   dims the rest.
 - **Bold word starts:** the first letters of each word a little bolder.
 - **Pause helper:** in voice mode, when the microphone has been silent for a
-  few seconds, the next words get a soft background so your eye finds the way
-  back. It goes when you speak again.
+  few seconds, the spotlight words get a soft background so your eye finds the
+  way back. It goes when you speak again.
 - **Words per line** (under *Text*): the font size follows the screen width so
   about that many words fit on a line, also after rotating.
 
@@ -284,9 +284,17 @@ speech recognition on Apple Silicon. Nothing leaves your Mac.
 3. Allow microphone access when macOS asks.
 4. Choose your **Microphone**, and open the prompter.
 
-While you speak, the text ahead stays bright. Words Souffleur has heard take
-the *heard* colour for a moment (1.5 s by default), then fade to dimmed; the
-current word is underlined. Colour and time are under *Reading aids*.
+While you speak, three things show where you are, without pinning you to one
+word (the recognition is a moment behind; you track the exact word yourself):
+
+- **Heard:** words Souffleur has heard take the *heard* colour for a moment
+  (1.5 s by default), then fade to dimmed.
+- **Spotlight:** the next words after those (7 by default), where you'll be
+  speaking any moment, in the *Spotlight* colour.
+- **Ahead:** the rest in your normal *Text* colour. Set it a little darker than
+  the spotlight (for example 90% white, `#e6e6e6`) so the spotlight stands out.
+
+All under *Colours* and *Reading aids*.
 
 The status bar shows a level meter and the last words heard, so you can see
 that it works.
