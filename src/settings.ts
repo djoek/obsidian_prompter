@@ -50,7 +50,7 @@ export interface PrompterSettings {
 }
 
 export const VOICE_COMMAND =
-  'uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve';
+  'uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian-souffleur#subdirectory=voice" souffleur-voice serve';
 export const VOICE_URL = "ws://127.0.0.1:8791";
 
 export const DEFAULT_SETTINGS: PrompterSettings = {
@@ -121,7 +121,8 @@ export function looksLikeOurs(data: unknown): boolean {
 
 /**
  * Keep known settings with the right type, and update values that changed
- * with the rename: the voice process is now `souffleur-voice`, on port 8791.
+ * with the rename: the voice process is now `souffleur-voice`, on port 8791,
+ * in the repository djoek/obsidian-souffleur.
  */
 export function migrateSettings(data: unknown): Partial<PrompterSettings> {
   if (!data || typeof data !== "object") return {};
@@ -133,7 +134,9 @@ export function migrateSettings(data: unknown): Partial<PrompterSettings> {
     }
   }
   if (typeof out.voiceCommand === "string") {
-    out.voiceCommand = out.voiceCommand.replace(/prompter-voice/g, "souffleur-voice");
+    out.voiceCommand = out.voiceCommand
+      .replace(/prompter-voice/g, "souffleur-voice")
+      .replace(/djoek\/obsidian_prompter/g, "djoek/obsidian-souffleur");
   }
   if (out.voiceUrl === "ws://127.0.0.1:8765") out.voiceUrl = VOICE_URL;
   return out as Partial<PrompterSettings>;

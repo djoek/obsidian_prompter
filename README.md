@@ -15,7 +15,7 @@ Prompter over DisplayLink) and make fullscreen.
 
 1. Install the community plugin **BRAT** (Obsidian42 - BRAT) and enable it.
 2. Command palette → **BRAT: Add a beta plugin for testing**.
-3. Paste `https://github.com/djoek/obsidian_prompter` and confirm.
+3. Paste `https://github.com/djoek/obsidian-souffleur` and confirm.
 4. Enable **Souffleur** under *Settings → Community plugins*.
 
 BRAT downloads `main.js`, `manifest.json` and `styles.css` from the latest
@@ -25,7 +25,7 @@ GitHub release, and checks for updates.
 
 ```bash
 cd "<your vault>/.obsidian/plugins"
-git clone https://github.com/djoek/obsidian_prompter souffleur
+git clone https://github.com/djoek/obsidian-souffleur souffleur
 cd souffleur
 bun install
 bun run build

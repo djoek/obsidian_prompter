@@ -1252,6 +1252,7 @@ name = "souffleur-voice"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "huggingface-hub" },
     { name = "num2words" },
     { name = "numpy" },
     { name = "rapidfuzz" },
@@ -1273,6 +1274,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "huggingface-hub", specifier = ">=0.34" },
     { name = "num2words", specifier = ">=0.5.14" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "parakeet-mlx", marker = "extra == 'parakeet'", specifier = ">=0.3" },

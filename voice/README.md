@@ -17,7 +17,7 @@ The plugin can start it for you (Settings → Souffleur → Voice tracking).
 The default start command is:
 
 ```bash
-uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian-souffleur#subdirectory=voice" souffleur-voice serve
 ```
 
 `uvx` installs it into a cached, isolated environment; nothing to clone.
@@ -27,7 +27,7 @@ To see the log, run it in a terminal instead, and clear the start command in
 the plugin settings:
 
 ```bash
-uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice serve --device "MacBook Pro Microphone"
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian-souffleur#subdirectory=voice" souffleur-voice serve --device "MacBook Pro Microphone"
 ```
 
 macOS asks for microphone permission the first time, for whichever app
@@ -77,7 +77,7 @@ Record yourself reading part of a script (QuickTime → New Audio Recording,
 then export, or any 16-bit WAV), and run:
 
 ```bash
-uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian_prompter#subdirectory=voice" souffleur-voice bench take.wav script.md
+uvx --from "souffleur-voice[parakeet] @ git+https://github.com/djoek/obsidian-souffleur#subdirectory=voice" souffleur-voice bench take.wav script.md
 ```
 
 It prints each position change with its time in the recording, then:
