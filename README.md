@@ -195,8 +195,9 @@ All off by default, under *Reading aids* in the settings (and per note in
 - **Focus band:** keeps a number of lines from the eye line down bright and
   dims the rest.
 - **Bold word starts:** the first letters of each word a little bolder.
-- **Pause helper:** in voice mode, after a few seconds of silence, the next
-  words light up so your eye finds the way back.
+- **Pause helper:** in voice mode, when the microphone has been silent for a
+  few seconds, the next words get a soft background so your eye finds the way
+  back. It goes when you speak again.
 - **Words per line** (under *Text*): the font size follows the screen width so
   about that many words fit on a line, also after rotating.
 

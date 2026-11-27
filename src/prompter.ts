@@ -31,6 +31,9 @@ const JUMP_MS = 450;
 const FRAME_FALLBACK_MS = 50;
 /** Voice mode: seconds to close ~63% of the gap to the spoken word. */
 const FOLLOW_TAU = 0.35;
+/** Microphone level (RMS) above which we count it as sound: about -40 dBFS,
+ * above a quiet room's noise, below speech. */
+const SOUND_RMS = 0.01;
 
 interface Tween {
   from: number;
@@ -101,6 +104,8 @@ export class Prompter {
 
   /** Voice mode: when the last position arrived (pause helper). */
   private lastHeardAt = 0;
+  /** Voice mode: when the microphone last picked up sound. */
+  private lastSoundAt = 0;
 
   /** Font size in use: the setting, or fitted to "words per line". */
   private fontPx = 0;
@@ -613,10 +618,21 @@ export class Prompter {
   }
 
   /** Voice mode: after a silence, light up the words to say next. */
+  /** The microphone level, from the voice process (4× a second). */
+  setLevel(rms: number): void {
+    if (rms > SOUND_RMS) this.lastSoundAt = this.win.performance.now();
+  }
+
+  /**
+   * Pause helper: only on a real silence. Both must be true for `pauseHint`
+   * seconds: no new word recognised, and no sound from the microphone. So it
+   * doesn't appear while you speak and the matching catches up.
+   */
   private updatePauseHint(now: number): void {
     const wait = this.settings.pauseHint * 1000;
+    const quietSince = Math.max(this.lastHeardAt, this.lastSoundAt);
     const paused =
-      wait > 0 && this.voice && this.playing && this.lastHeardAt > 0 && now - this.lastHeardAt > wait;
+      wait > 0 && this.voice && this.playing && this.lastHeardAt > 0 && now - quietSince > wait;
     if (paused !== this.stage.hasAttribute("data-paused")) {
       this.stage.toggleAttribute("data-paused", paused);
     }

@@ -236,6 +236,7 @@ export default class SouffleurPlugin extends Plugin {
       },
       onLevel: (rms) => {
         this.level = rms;
+        this.views().forEach((v) => v.prompter?.setLevel(rms));
         this.refreshInfo();
       },
     });
@@ -710,7 +711,7 @@ class SouffleurSettingTab extends PluginSettingTab {
       0,
       10,
       1,
-      "Voice tracking: after this many seconds of silence, the next words light up. 0: off.",
+      "Voice tracking: when the microphone has been silent this many seconds, the next words light up. 0: off.",
     );
     slider("Pause helper: words", "nextWords", 1, 10, 1, "How many of the next words light up.");
     color("Pause helper colour", "nextColor");
