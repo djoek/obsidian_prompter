@@ -73,14 +73,22 @@ The **Font** setting lists the fonts it finds on your computer. Fonts designed
 or often recommended for dyslexic readers are marked ★ and listed first:
 OpenDyslexic, Atkinson Hyperlegible, Lexend and Andika (free downloads), and
 Verdana, Tahoma, Trebuchet MS and Comic Sans MS (included with macOS).
-To install one with Homebrew:
-
-```bash
-brew install --cask font-opendyslexic
-```
+To install one:
 
 ```bash
 brew install --cask font-atkinson-hyperlegible-next
+```
+
+```bash
+brew install --cask font-lexend
+```
+
+OpenDyslexic's Homebrew cask is disabled (its download server went away), but
+the author's GitHub repository has the font files. This puts the four styles in
+your user font folder:
+
+```bash
+for f in Regular Bold Italic BoldItalic; do curl -fL -o ~/Library/Fonts/OpenDyslexic-$f.otf "https://github.com/antijingoist/opendyslexic/raw/main/compiled/OpenDyslexic-$f.otf"; done
 ```
 
 Then reopen the Teleprompter settings so the new font is found.
