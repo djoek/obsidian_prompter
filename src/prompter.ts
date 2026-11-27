@@ -5,7 +5,7 @@
 // sits on the eye line. Scrolling = changing `pos`; rendering = translating
 // the text so that `pos` lines up with the eye line.
 
-import { blockSeconds, formatDuration, sectionLengths } from "./pacing";
+import { blockSeconds, formatDuration, sectionLengths, spokenWords } from "./pacing";
 import type { Run, Script } from "./parser";
 import type { PrompterSettings } from "./settings";
 
@@ -197,7 +197,7 @@ export class Prompter {
     if (anchor) {
       this.pos = this.fromAnchor(anchor);
     } else {
-      this.goToBlock(script.sections[0]?.firstBlock ?? 0, false);
+      this.goToBlock(this.startBlock(0), false);
     }
     this.current = this.blockAt(this.pos);
     // A re-render made fresh spans: restore the marks on them.
@@ -784,10 +784,27 @@ export class Prompter {
     this.updateHud();
   }
 
+  /**
+   * Where you start speaking in section `n`: its first block with words to
+   * say. An unspoken heading (or a line with only a margin note) is skipped,
+   * so the eye line lands where you begin, with the heading just above.
+   */
+  private startBlock(n: number): number {
+    const sec = this.script.sections[n];
+    if (!sec) return 0;
+    const blocks = this.script.blocks;
+    for (let i = sec.firstBlock; i < blocks.length; i++) {
+      const b = blocks[i]!;
+      if (b.section !== n) break;
+      if (b.type !== "separator" && spokenWords(b, this.settings) > 0) return i;
+    }
+    return sec.firstBlock;
+  }
+
   goToSection(n: number): void {
     const sec = this.script.sections[n];
     if (!sec) return;
-    this.goToBlock(sec.firstBlock);
+    this.goToBlock(this.startBlock(n));
     this.timerSection = -1; // a retake of the same section starts at 0:00 too
   }
 
@@ -803,7 +820,7 @@ export class Prompter {
    */
   prevSection(): void {
     const n = this.currentSection();
-    const start = this.tops[this.script.sections[n]?.firstBlock ?? 0] ?? 0;
+    const start = this.tops[this.startBlock(n)] ?? 0;
     const target = this.pos - start > this.lineHeightPx() ? n : n - 1;
     this.goToSection(Math.max(0, target));
   }
