@@ -591,39 +591,16 @@ class SouffleurSettingTab extends PluginSettingTab {
     type ColorKey =
       | "textColor"
       | "backgroundColor"
-      | "headingColor"
-      | "markColor"
       | "eyeLineColor"
       | "nextColor"
       | "heardColor"
       | "spotlightColor"
-      | "noteColor";
+      | "unspokenColor";
     const color = (name: string, key: ColorKey) =>
       new Setting(containerEl)
         .setName(name)
         .addColorPicker((c) => c.setValue(s[key]).onChange((v) => set({ [key]: v })));
 
-    // Emphasis is the text colour until you pick one; reset to go back.
-    const optional = (name: string, key: "italicColor" | "boldColor") =>
-      new Setting(containerEl)
-        .setName(name)
-        .setDesc(s[key] ? "Its own colour." : "Same as the text.")
-        .addColorPicker((c) =>
-          c.setValue(s[key] || s.textColor).onChange(async (v) => {
-            await this.plugin.updateSettings({ [key]: v });
-            this.display();
-          }),
-        )
-        .addExtraButton((b) =>
-          b
-            .setIcon("rotate-ccw")
-            .setTooltip("Same as the text")
-            .setDisabled(!s[key])
-            .onClick(async () => {
-              await this.plugin.updateSettings({ [key]: "" });
-              this.display();
-            }),
-        );
 
     new Setting(containerEl).setName("Orientation").setHeading();
     new Setting(containerEl)
@@ -690,10 +667,7 @@ class SouffleurSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Colours").setHeading();
     color("Text", "textColor");
     color("Background", "backgroundColor");
-    color("Headings and separators", "headingColor");
-    color("==Highlight==", "markColor");
-    optional("*Italic*", "italicColor");
-    optional("**Bold**", "boldColor");
+    color("Not spoken: headings, margin notes, separators", "unspokenColor");
     color("Eye-line markers", "eyeLineColor");
 
     new Setting(containerEl).setName("Reading aids").setHeading();
@@ -707,7 +681,6 @@ class SouffleurSettingTab extends PluginSettingTab {
       "In the status bar: time spent in this section, and how long it normally takes at your speed.",
     );
 
-    color("Margin notes", "noteColor");
     color("Heard words (voice tracking)", "heardColor");
     new Setting(containerEl)
       .setName("Spotlight style")

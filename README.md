@@ -135,9 +135,12 @@ change the speed for this session only.
   `souffleur: { speakHeadings: true }`.
 - `%% comments %%` and `<!-- comments -->` are **hidden**: use them for
   directions to yourself.
-- `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` are shown. Bold and
-  italic can have their own colour (*Colours → Italic / Bold*; ↺ makes them
-  the text colour again).
+- `**bold**`, `*italic*`, `==highlight==` and `~~strike~~` look the way your
+  theme shows them in reading view. Souffleur only sets what makes it a
+  prompter: background, text colour, font, size and spacing.
+- What is shown but **not spoken** (unspoken headings, margin notes, section
+  labels and `---` separators) shares one look: the *Not spoken* colour, in
+  italic, so it's clear at a glance what not to say.
   Links show their text; embeds and images are left out; code blocks are skipped.
 - Edits to the note show up in the prompter while it is open, and it keeps
   your place.
@@ -196,7 +199,8 @@ Ik werk met Nvidia[^nv] kaarten.
   ignores them. A note on a line of its own (`^[pauze]`) appears at that spot.
 - *Margin notes → Position*: **Before sentence** (the side where lines start)
   or **After sentence**, as you read it, also when mirrored. Or *Hidden*.
-- Notes stay visible ahead of the eye line, and dim with the text you've read.
+- Notes stay visible ahead of the eye line, dim with the text you've read, and
+  use the *Not spoken* style.
 - `%% comments %%` stay completely hidden: notes to yourself while writing.
 
 ## Reading aids

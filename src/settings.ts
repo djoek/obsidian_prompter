@@ -18,16 +18,13 @@ export interface PrompterSettings {
   // Colours
   textColor: string;
   backgroundColor: string;
-  headingColor: string;
-  markColor: string;
   eyeLineColor: string;
   nextColor: string; // pause helper background
   spotlightColor: string; // voice: the words right after the last one heard
   spotlightStyle: SpotlightStyle; // underline keeps the text's own colours
   heardColor: string; // voice: words just heard, before they dim
-  noteColor: string;
-  italicColor: string; // "" = same as the text
-  boldColor: string; // "" = same as the text
+  /** Shown but not spoken: unspoken headings, margin notes, separators. */
+  unspokenColor: string;
 
   // Reading aids
   eyeLine: number; // % from the top where you read
@@ -94,16 +91,12 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
 
   textColor: "#ffffff",
   backgroundColor: "#000000",
-  headingColor: "#ffd166",
-  markColor: "#ffd166",
   eyeLineColor: "#ff4d4d",
   nextColor: "#9be7a0",
   spotlightColor: "#ffffff",
   spotlightStyle: "underline",
   heardColor: "#7ee8fa",
-  noteColor: "#c3a6ff",
-  italicColor: "",
-  boldColor: "",
+  unspokenColor: "#a99cc9",
 
   eyeLine: 30,
   showEyeLine: true,

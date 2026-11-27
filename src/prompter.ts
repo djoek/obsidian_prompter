@@ -133,7 +133,9 @@ export class Prompter {
 
     this.stage = this.el("div", "sf-stage", host);
     this.rotor = this.el("div", "sf-rotor", this.stage);
-    this.content = this.el("article", "sf-content", this.rotor);
+    // "markdown-rendered": your theme styles italic, bold, highlight etc. here
+    // the way it does in reading view.
+    this.content = this.el("article", "sf-content markdown-rendered", this.rotor);
     this.notesEl = this.el("div", "sf-notes", this.content);
     this.bandEl = this.el("div", "sf-band", this.rotor);
     this.eye = this.el("div", "sf-eyeline", this.rotor);
@@ -265,6 +267,7 @@ export class Prompter {
       }
       this.blockWord.push(this.wordIndex);
       const spoken = block.type !== "heading" || this.settings.speakHeadings;
+      el.toggleAttribute("data-unspoken", !spoken);
       this.renderRuns(el, block.runs, this.els.length, spoken);
       this.els.push(el);
     }
@@ -332,8 +335,6 @@ export class Prompter {
     st.setProperty("--sf-align", s.textAlign);
     st.setProperty("--sf-fg", s.textColor);
     st.setProperty("--sf-bg", s.backgroundColor);
-    st.setProperty("--sf-heading", s.headingColor);
-    st.setProperty("--sf-mark", s.markColor);
     st.setProperty("--sf-eye", s.eyeLineColor);
     st.setProperty("--sf-next", s.nextColor);
     st.setProperty("--sf-heard", s.heardColor);
@@ -343,9 +344,7 @@ export class Prompter {
     this.hud.hidden = !s.showHud;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
     this.stage.dataset.spotlight = s.spotlightStyle;
-    st.setProperty("--sf-note", s.noteColor);
-    st.setProperty("--sf-italic", s.italicColor || "inherit");
-    st.setProperty("--sf-bold", s.boldColor || "inherit");
+    st.setProperty("--sf-unspoken", s.unspokenColor);
     st.setProperty("--sf-band-lines", String(s.focusBand));
     this.content.dataset.margin = this.notes.length ? s.marginNotes : "off";
     this.notesEl.hidden = s.marginNotes === "off";

@@ -4,7 +4,14 @@ import { installedFonts } from "../src/fonts";
 import { parseScript } from "../src/parser";
 import { Prompter } from "../src/prompter";
 import { DEFAULT_SETTINGS, type PrompterSettings } from "../src/settings";
+import css from "../styles.css" with { type: "text" };
 import sample from "./sample.md" with { type: "text" };
+
+// The stylesheet as Obsidian loads it: raw, not through Bun's CSS bundler
+// (which reorders nested rules).
+const style = document.createElement("style");
+style.textContent = css;
+document.head.append(style);
 
 const params = new URLSearchParams(location.search);
 const settings: PrompterSettings = {
