@@ -2,6 +2,12 @@
 
 *A prompter teleprompter that follows your voice.*
 
+![Souffleur following a Dutch script by voice: words already said are dimmed, the words just heard are blue, the next words are underlined, and a margin note sits beside its line. Red eye-line markers on both sides, a red status light top right, and a status bar with the section timer at the bottom.](docs/prompter.png)
+
+*Following your voice: what you've said dims, what was just heard is blue, the
+words you'll say next are underlined. Stage directions sit in the margin; the
+red dot means it's listening.*
+
 In the theatre, the souffleur sits out of sight and follows the actors through
 the script, ready with the next line. This Obsidian plugin does the same for
 video: 
