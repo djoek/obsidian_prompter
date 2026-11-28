@@ -99,6 +99,38 @@ selected. An action can have several inputs; the × removes one. MIDI is only op
 while learning or when a MIDI input is in use, so without MIDI there's no
 permission prompt.
 
+## Settings
+
+The settings are grouped by task: **Prompter** (your rig, set once), **Text**,
+**Scrolling** (at a set speed or following your voice; settings that don't
+apply to the chosen mode are greyed out), **Script**, **Controls** and
+**Advanced**. Rarely used parts are folded away. The search box at the top
+filters by name and description, and opens folds that match.
+
+## Lifecycle hooks
+
+*Advanced → Lifecycle hooks* (folded away) runs a shell command at a moment,
+so you can connect other tools (OBS, a recorder, chapter markers) yourself:
+**Open**, **Play**, **Pause**, **Section** (a section starts: scrolled or
+jumped into, a retake, or by voice), **Section done** (voice mode: read to its
+end) and **Close**. The command gets:
+
+| Variable | Value |
+|---|---|
+| `SOUFFLEUR_EVENT` | `open`, `play`, `pause`, `section`, `sectionDone`, `close` |
+| `SOUFFLEUR_NOTE` | the note's full path on disk |
+| `SOUFFLEUR_SECTION` | the section number, from 1 |
+| `SOUFFLEUR_SECTION_TITLE` | its heading |
+| `SOUFFLEUR_MODE` | `speed` or `voice` |
+| `SOUFFLEUR_SECONDS`, `SOUFFLEUR_WPM` | at *Section done*: the run's time and speed |
+
+For example, a *Play* hook `obs-cmd recording start`, or a *Section* hook that
+appends `$SOUFFLEUR_SECTION_TITLE` with a timestamp to a file for chapter
+markers. Commands don't block the prompter; output goes to the developer
+console, a failure to a notice. **Test** runs one with sample values. Hooks can
+only be set in the plugin settings, never from a note's frontmatter, so a note
+someone shares with you can't run commands on your computer.
+
 ## Per-note settings (frontmatter)
 
 A note can override any setting in its frontmatter. All of it is optional.
@@ -174,9 +206,12 @@ frontmatter) counts.
 Souffleur notes how long it took, at the end of that section:
 
 ```markdown
-%% run: 2:15 · 2026-11-28 14:03 %%
-%% run: 2:07 · 2026-11-28 14:20 %%
+%% run: 2:15 · 128 wpm · 2026-11-28 14:03 %%
+%% run: 2:07 · 136 wpm · 2026-11-28 14:20 %%
 ```
+
+The speed is your actual words per minute in that run, to compare with your
+*Speed* setting.
 
 It's timed from the first word heard to the last (starting over, or P, starts
 the clock again). *Pacing → Note the last runs* sets how many to keep per
@@ -306,6 +341,10 @@ Raise `version` in `manifest.json` (and `package.json`) and push to `main`.
 `.github/workflows/release.yml` sees a version without a release, then tests,
 builds and publishes a release tagged with that version (no `v`, as Obsidian
 and BRAT expect), with `main.js`, `manifest.json` and `styles.css`.
+
+`bun dev/settings/build.ts` builds the real settings page against a small
+stand-in for Obsidian's API (`dev/settings/out/index.html`), to check it in a
+browser.
 
 `src/parser.ts` (Markdown → blocks and sections) and `src/prompter.ts` (the
 scroll engine) don't import Obsidian, so they can be tested and tried outside

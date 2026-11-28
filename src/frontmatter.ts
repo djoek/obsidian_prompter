@@ -19,6 +19,7 @@ const NOT_PER_NOTE = new Set<keyof PrompterSettings>([
   "bindings",
   "midiDevice",
   "midiChannel",
+  "hooks", // a shared note must never run commands on your computer
 ]);
 
 /** Settings that only accept a few values. */

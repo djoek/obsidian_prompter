@@ -1,4 +1,5 @@
 import {
+  FileSystemAdapter,
   ItemView,
   Notice,
   TFile,
@@ -7,6 +8,7 @@ import {
   type WorkspaceLeaf,
 } from "obsidian";
 import { noteOverrides, type NoteOverrides } from "./frontmatter";
+import type { HookContext, HookEvent } from "./hooks";
 import type SouffleurPlugin from "./main";
 import { formatDuration } from "./pacing";
 import { blockAtLine, parseScript, type Script } from "./parser";
@@ -78,8 +80,15 @@ export class PrompterView extends ItemView {
       onSeek: (word) => this.plugin.voice?.seek(word),
       onToggleVoice: () => void this.plugin.toggleVoice(),
       onResetVoice: () => this.plugin.resetVoice(),
-      onListening: (on) => this.plugin.setListening(on),
-      onSectionDone: (section, seconds) => void this.noteRun(section, seconds),
+      onListening: (on) => {
+        this.plugin.setListening(on);
+        this.hook(on ? "play" : "pause");
+      },
+      onSection: (section) => this.hook("section", { section }),
+      onSectionDone: (section, seconds, words) => {
+        void this.noteRun(section, seconds, words);
+        this.hook("sectionDone", { section, seconds, wpm: seconds > 0 ? (words / seconds) * 60 : 0 });
+      },
     });
     this.plugin.syncVoice(this);
 
@@ -118,7 +127,26 @@ export class PrompterView extends ItemView {
     );
   }
 
+  /** Run a lifecycle hook with this prompter's note and section. */
+  private hook(event: HookEvent, extra: Partial<HookContext> = {}): void {
+    const p = this.prompter;
+    const section = extra.section ?? p?.section ?? -1;
+    const adapter = this.app.vault.adapter;
+    const note =
+      this.filePath && adapter instanceof FileSystemAdapter
+        ? adapter.getFullPath(this.filePath)
+        : (this.filePath ?? "");
+    this.plugin.runHook(event, {
+      note,
+      section,
+      sectionTitle: p?.sectionTitle(section) ?? "",
+      mode: p?.voiceMode ? "voice" : "speed",
+      ...extra,
+    });
+  }
+
   async onClose(): Promise<void> {
+    this.hook("close");
     this.prompter?.destroy();
     this.prompter = null;
   }
@@ -128,8 +156,10 @@ export class PrompterView extends ItemView {
   }
 
   async setState(state: State, result: ViewStateResult): Promise<void> {
+    const opened = !!state.file && state.file !== this.filePath;
     if (state.file) this.filePath = state.file;
     await this.loadScript(false);
+    if (opened) this.hook("open");
     if (this.script && state.line !== undefined) {
       this.prompter?.goToBlock(blockAtLine(this.script, state.line), false);
     }
@@ -151,14 +181,14 @@ export class PrompterView extends ItemView {
   }
 
   /** Write the section's "last run" comment into the note. */
-  private async noteRun(section: number, seconds: number): Promise<void> {
+  private async noteRun(section: number, seconds: number, words: number): Promise<void> {
     const { runsToKeep: keep, noteSaid } = this.settings();
     if ((keep < 1 && !noteSaid) || !this.filePath) return;
     const file = this.app.vault.getAbstractFileByPath(this.filePath);
     if (!(file instanceof TFile)) return;
     const when = new Date();
     if (keep >= 1) {
-      await this.app.vault.process(file, (text) => addRun(text, section, seconds, when, keep));
+      await this.app.vault.process(file, (text) => addRun(text, section, seconds, when, keep, words));
       this.prompter?.toast(`Section ${section + 1}: ${formatDuration(seconds)}`);
     }
     if (noteSaid) {

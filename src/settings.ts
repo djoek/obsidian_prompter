@@ -1,3 +1,4 @@
+import { type Hooks, NO_HOOKS } from "./hooks";
 import type { Binding } from "./inputs";
 
 export type Rotation = 0 | 90 | 180 | 270;
@@ -75,6 +76,9 @@ export interface PrompterSettings {
   bindings: Binding[];
   midiDevice: string; // "" = all MIDI devices
   midiChannel: number; // 1–16, or 0 = all channels
+
+  // Lifecycle hooks: a shell command per moment ("" = none)
+  hooks: Hooks;
 }
 
 export const VOICE_COMMAND =
@@ -141,6 +145,8 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   bindings: [],
   midiDevice: "",
   midiChannel: 0,
+
+  hooks: { ...NO_HOOKS },
 };
 
 // ── Migration from the plugin's earlier name ──────────────────────────────

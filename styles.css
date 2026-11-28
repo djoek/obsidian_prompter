@@ -323,3 +323,26 @@ progress.sf-download {
 .sf-light[data-state="paused"] { border: calc(var(--d) * 0.14) solid #8a8a8a; }
 .sf-light[data-state="waiting"] { background: #ffb020; }
 [hidden].sf-light { display: none; }
+
+/* Settings page */
+.sf-settings {
+  & .sf-search { border-top: none; }
+  & .sf-search .setting-item-info { display: none; }
+  & .sf-search .setting-item-control { width: 100%; }
+  & .sf-search .search-input-container { width: 100%; }
+  & .sf-subhead {
+    margin: 1.4em 0 0.2em;
+    font-size: var(--font-ui-medium);
+    color: var(--text-muted);
+  }
+  & .sf-note-text { margin: 0.2em 0 0.6em; }
+  & details.sf-more {
+    margin: 0.4em 0 0.8em;
+    padding-left: 0.8em;
+    border-left: 2px solid var(--background-modifier-border);
+  }
+  & details.sf-more > summary { cursor: pointer; color: var(--text-muted); padding: 0.3em 0; }
+  & .sf-off { opacity: 0.5; }
+  & .sf-why { margin-top: 0.2em; font-style: italic; }
+  & .sf-hidden { display: none; }
+}

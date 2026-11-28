@@ -13,6 +13,7 @@ import {
 import { SECTIONS_VIEW, SectionsView } from "./sections";
 import { PrompterView, VIEW_TYPE } from "./view";
 import { firstFamily, fontStack, installedFonts } from "./fonts";
+import { HOOKS, type HookContext, type HookEvent, cleanHooks, hookEnv } from "./hooks";
 import {
   ACTIONS,
   type Action,
@@ -42,6 +43,7 @@ export default class SouffleurPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...migrateSettings(await this.loadSettingsData()) };
     this.settings.bindings = cleanBindings(this.settings.bindings);
+    this.settings.hooks = cleanHooks(this.settings.hooks);
     this.midi.setDevice(this.settings.midiDevice);
     this.midi.setChannel(this.settings.midiChannel);
     this.registerView(VIEW_TYPE, (leaf) => new PrompterView(leaf, this));
@@ -278,13 +280,35 @@ export default class SouffleurPlugin extends Plugin {
     this.proc = null;
   }
 
-  private startProcess(command: string): void {
+  /** Apps started from the Dock get a minimal PATH; add the usual homes. */
+  private shellEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
     const home = process.env.HOME ?? "";
-    // Apps started from the Dock get a minimal PATH; add the usual uv homes.
     const PATH = [process.env.PATH, `${home}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin"]
       .filter(Boolean)
       .join(":");
-    const proc = spawn(command, { shell: true, detached: true, env: { ...process.env, PATH } });
+    return { ...process.env, PATH, ...extra };
+  }
+
+  /**
+   * Run a lifecycle hook's command, if one is set. It never blocks the
+   * prompter; output goes to the developer console, a failure to a notice.
+   */
+  runHook(event: HookEvent, ctx: HookContext): void {
+    const command = this.settings.hooks[event]?.trim();
+    if (!command) return;
+    const name = HOOKS.find((h) => h.id === event)?.name ?? event;
+    const proc = spawn(command, { shell: true, env: this.shellEnv(hookEnv(event, ctx)) });
+    const log = (chunk: Buffer) => console.log(`[souffleur hook ${name}] ${chunk.toString().trimEnd()}`);
+    proc.stdout?.on("data", log);
+    proc.stderr?.on("data", log);
+    proc.on("error", (e) => new Notice(`Souffleur hook "${name}" couldn't start: ${e.message}`));
+    proc.on("exit", (code) => {
+      if (code) new Notice(`Souffleur hook "${name}" failed (exit ${code}). See the developer console.`);
+    });
+  }
+
+  private startProcess(command: string): void {
+    const proc = spawn(command, { shell: true, detached: true, env: this.shellEnv() });
     this.proc = proc;
     let tail = "";
     const log = (chunk: Buffer) => {
@@ -396,7 +420,7 @@ export function formatProgress(done: number, total: number): string {
   return `${pct}% · ${gb(done)} of ${gb(total)} GB`;
 }
 
-class SouffleurSettingTab extends PluginSettingTab {
+export class SouffleurSettingTab extends PluginSettingTab {
   private unsubscribe: (() => void) | null = null;
   private stopLearning: (() => void) | null = null;
 
@@ -410,14 +434,15 @@ class SouffleurSettingTab extends PluginSettingTab {
   /** Pedals, clickers and MIDI: one row per action, with Learn and remove. */
   private displayInputs(containerEl: HTMLElement): void {
     const plugin = this.plugin;
-    new Setting(containerEl).setName("Pedals, clickers and MIDI").setHeading();
+    containerEl.createEl("h4", { cls: "sf-subhead", text: "Pedals, clickers and MIDI" });
     containerEl.createEl("p", {
+      cls: "sf-note-text",
       text:
         "Press Learn, then the pedal, clicker key or MIDI button. Keys work while the " +
         "prompter window is active; MIDI works whichever window is active. A learned key " +
         "replaces that key's built-in action in the prompter.",
     });
-    const midiState = containerEl.createEl("p", { cls: "setting-item-description" });
+    const midiState = containerEl.createEl("p", { cls: "setting-item-description sf-note-text" });
     const showMidi = () => {
       const devices = plugin.midi.devices();
       midiState.setText(
@@ -553,23 +578,62 @@ class SouffleurSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  /** What's typed in the search box; kept when the page redraws. */
+  private query = "";
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    containerEl.addClass("sf-settings");
     const s = this.plugin.settings;
     const set = (patch: Partial<PrompterSettings>) => void this.plugin.updateSettings(patch);
+    const voice = s.voiceEnabled;
 
-    const text = (name: string, key: "fontFamily", desc = "") =>
-      new Setting(containerEl)
-        .setName(name)
-        .setDesc(desc)
-        .addText((t) => t.setValue(s[key]).onChange((v) => set({ [key]: v })));
+    // Search: filters rows by name and description (see filter()).
+    const search = new Setting(containerEl).setClass("sf-search");
+    search.addSearch((q) => {
+      q.setPlaceholder("Search Souffleur settings…")
+        .setValue(this.query)
+        .onChange((v) => {
+          this.query = v;
+          this.filter();
+        });
+    });
+
+    // Rows go into `parent`: the current section, or a "More" fold in it.
+    let parent: HTMLElement = containerEl;
+    const section = (name: string) => {
+      parent = containerEl.createDiv({ cls: "sf-section" });
+      new Setting(parent).setName(name).setHeading();
+    };
+    const sub = (name: string, note = "") => {
+      parent.createEl("h4", { cls: "sf-subhead", text: name });
+      if (note) parent.createEl("p", { cls: "sf-note-text setting-item-description", text: note });
+    };
+    const more = (label: string, build: () => void) => {
+      const outer = parent;
+      const fold = outer.createEl("details", { cls: "sf-more" });
+      fold.createEl("summary", { text: label });
+      parent = fold;
+      build();
+      parent = outer;
+    };
+    // A row that only applies in one mode is greyed out in the other.
+    const only = (mode: "voice" | "speed", row: Setting) => {
+      if ((mode === "voice") === voice) return row;
+      row.setDisabled(true).setClass("sf-off");
+      row.descEl.createEl("div", {
+        cls: "sf-why",
+        text: mode === "voice" ? "Only when following your voice." : "Not used while following your voice.",
+      });
+      return row;
+    };
 
     type NumKey = {
       [K in keyof PrompterSettings]: PrompterSettings[K] extends number ? K : never;
     }[keyof PrompterSettings];
     const slider = (name: string, key: NumKey, min: number, max: number, step: number, desc = "") =>
-      new Setting(containerEl)
+      new Setting(parent)
         .setName(name)
         .setDesc(desc)
         .addSlider((sl) =>
@@ -584,7 +648,7 @@ class SouffleurSettingTab extends PluginSettingTab {
       [K in keyof PrompterSettings]: PrompterSettings[K] extends boolean ? K : never;
     }[keyof PrompterSettings];
     const toggle = (name: string, key: BoolKey, desc = "") =>
-      new Setting(containerEl)
+      new Setting(parent)
         .setName(name)
         .setDesc(desc)
         .addToggle((t) => t.setValue(s[key]).onChange((v) => set({ [key]: v })));
@@ -597,14 +661,15 @@ class SouffleurSettingTab extends PluginSettingTab {
       | "heardColor"
       | "spotlightColor"
       | "unspokenColor";
-    const color = (name: string, key: ColorKey) =>
-      new Setting(containerEl)
+    const color = (name: string, key: ColorKey, desc = "") =>
+      new Setting(parent)
         .setName(name)
+        .setDesc(desc)
         .addColorPicker((c) => c.setValue(s[key]).onChange((v) => set({ [key]: v })));
 
-
-    new Setting(containerEl).setName("Orientation").setHeading();
-    new Setting(containerEl)
+    // ── 1. Prompter: the rig, set once ─────────────────────────────────────
+    section("Prompter");
+    new Setting(parent)
       .setName("Rotation")
       .addDropdown((d) =>
         d
@@ -614,13 +679,29 @@ class SouffleurSettingTab extends PluginSettingTab {
       );
     toggle("Flip horizontal", "flipH", "Mirror left↔right, for a beam-splitter glass.");
     toggle("Flip vertical", "flipV", "Mirror top↔bottom.");
+    color("Background", "backgroundColor");
+    slider("Eye-line position", "eyeLine", 10, 70, 1, "Percentage from the top: where you read.");
+    toggle("Show eye-line markers", "showEyeLine");
+    color("Eye-line marker colour", "eyeLineColor");
+    toggle(
+      "Status light",
+      "showLight",
+      "A dot top right, like a camera's tally light: red while going, a grey ring when paused, amber while voice tracking isn't ready yet.",
+    );
+    toggle("Show status bar", "showHud", "Toggle in the prompter with H.");
+    toggle(
+      "Show section timer",
+      "showSectionTimer",
+      "In the status bar: time in this section, and how long it normally takes at your speed.",
+    );
+    toggle("Keep the screen awake", "keepAwake", "While playing or listening, the display doesn't dim or sleep.");
 
-    new Setting(containerEl).setName("Text").setHeading();
-    // Fonts found on this computer; dyslexia-oriented ones first.
+    // ── 2. Text: how the words look ────────────────────────────────────────
+    section("Text");
     const fonts = installedFonts(containerEl.doc);
     const current = firstFamily(s.fontFamily);
     let custom: HTMLInputElement | null = null;
-    new Setting(containerEl)
+    new Setting(parent)
       .setName("Font")
       .setDesc(
         fonts.some((f) => f.dyslexia)
@@ -636,13 +717,6 @@ class SouffleurSettingTab extends PluginSettingTab {
           set({ fontFamily: stack });
         });
       });
-    new Setting(containerEl)
-      .setName("Font, as CSS")
-      .setDesc("Or type any font-family list here.")
-      .addText((t) => {
-        custom = t.inputEl;
-        t.setValue(s.fontFamily).onChange((v) => set({ fontFamily: v }));
-      });
     slider("Font size", "fontSize", 16, 160, 2, "Pixels.");
     slider(
       "Words per line",
@@ -653,10 +727,8 @@ class SouffleurSettingTab extends PluginSettingTab {
       "0: use Font size. Otherwise the size follows the screen width, so about this many words fit on a line.",
     );
     slider("Line height", "lineHeight", 1, 2, 0.05);
-    slider("Letter spacing", "letterSpacing", 0, 0.2, 0.01, "Extra space between letters, in em.");
-    slider("Word spacing", "wordSpacing", 0, 0.6, 0.02, "Extra space between words, in em.");
     slider("Text width", "textWidth", 40, 100, 1, "Percentage of the prompter width.");
-    new Setting(containerEl)
+    new Setting(parent)
       .setName("Alignment")
       .addDropdown((d) =>
         d
@@ -664,85 +736,15 @@ class SouffleurSettingTab extends PluginSettingTab {
           .setValue(s.textAlign)
           .onChange((v) => set({ textAlign: v as "left" | "center" })),
       );
+    color("Text colour", "textColor", "Italic, bold and highlight look as in your theme's reading view.");
+    color("Not spoken", "unspokenColor", "Unspoken headings, margin notes, section labels and separators.");
 
-    new Setting(containerEl).setName("Colours").setHeading();
-    color("Text", "textColor");
-    color("Background", "backgroundColor");
-    color("Not spoken: headings, margin notes, separators", "unspokenColor");
-    color("Eye-line markers", "eyeLineColor");
-
-    new Setting(containerEl).setName("Reading aids").setHeading();
-    slider("Eye-line position", "eyeLine", 10, 70, 1, "Percentage from the top: where you read.");
-    toggle("Show eye-line markers", "showEyeLine");
-    toggle("Dim text already read", "dimRead");
-    toggle("Show status bar", "showHud", "Toggle in the prompter with H.");
-    toggle(
-      "Status light",
-      "showLight",
-      "A dot top right, like a camera's tally light: red while going (playing or listening), a grey ring when paused, amber while voice tracking isn't ready yet.",
+    sub(
+      "Margin notes",
+      "Footnotes in your script, ^[smile] inline or [^1] with a [^1]: definition, appear in the margin level with their line. They aren't spoken. %% comments stay hidden.",
     );
-    toggle(
-      "Show section timer",
-      "showSectionTimer",
-      "In the status bar: time spent in this section, and how long it normally takes at your speed.",
-    );
-
-    color("Heard words (voice tracking)", "heardColor");
-    new Setting(containerEl)
-      .setName("Spotlight style")
-      .setDesc("How the next words are marked. Underline keeps the text's own colours (italic, bold, highlight).")
-      .addDropdown((d) =>
-        d
-          .addOptions({ underline: "Underline", colour: "Colour" })
-          .setValue(s.spotlightStyle)
-          .onChange((v) => set({ spotlightStyle: v as SpotlightStyle })),
-      );
-    color("Spotlight (voice tracking)", "spotlightColor");
-    slider(
-      "Spotlight words",
-      "nextWords",
-      0,
-      15,
-      1,
-      "The words right after the last one heard, where you'll be speaking: shown in the Spotlight colour. Tip: set Text a little darker (e.g. 90% white) so they stand out. 0: off.",
-    );
-    slider(
-      "Keep heard words coloured",
-      "heardHold",
-      0,
-      5,
-      0.25,
-      "Seconds a word you just said keeps this colour before it dims. 0: dim at once.",
-    );
-
-    slider(
-      "Focus band",
-      "focusBand",
-      0,
-      8,
-      1,
-      "Lines kept bright from the eye line down; the rest is dimmed. 0: off.",
-    );
-    toggle("Bold word starts", "boldStarts", "The first letters of each word a little bolder.");
-    slider(
-      "Pause helper",
-      "pauseHint",
-      0,
-      10,
-      1,
-      "Voice tracking: when the microphone has been silent this many seconds, the spotlight words get a background. 0: off.",
-    );
-    color("Pause helper colour", "nextColor");
-
-    new Setting(containerEl).setName("Margin notes").setHeading();
-    containerEl.createEl("p", {
-      text:
-        "Footnotes in your script appear in the margin, level with their line: " +
-        "^[smile] inline, or [^1] with a [^1]: definition. They aren't spoken, so " +
-        "they don't count for timing or voice tracking. %% comments stay hidden.",
-    });
-    new Setting(containerEl)
-      .setName("Position")
+    new Setting(parent)
+      .setName("Margin notes position")
       .setDesc("As you read it, also when mirrored.")
       .addDropdown((d) =>
         d
@@ -752,59 +754,71 @@ class SouffleurSettingTab extends PluginSettingTab {
       );
     slider("Margin width", "marginWidth", 10, 40, 1, "Percentage of the text width.");
 
-    new Setting(containerEl).setName("Pacing").setHeading();
-    slider("Speed", "wpm", 40, 400, 5, "Words per minute. Change live with + and −.");
-    slider("Heading speed ×", "headingSpeed", 0.25, 4, 0.05);
-    slider("Paragraph speed ×", "paragraphSpeed", 0.25, 4, 0.05);
-    slider("List item speed ×", "listSpeed", 0.25, 4, 0.05);
-    slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
-    slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
-    toggle(
-      "Note what you said differently",
-      "noteSaid",
-      "Voice tracking: when you've read a section to the end, list where your words differed from the script (paraphrases, typos you corrected) in a %% said differently %% comment. Misheard words show up too, so treat it as hints.",
-    );
-    slider(
-      "Note the last runs",
-      "runsToKeep",
-      0,
-      9,
-      1,
-      "Voice tracking: when you've read a section to the end, note its time as a %% run %% comment at the end of that section. Keeps this many, oldest first. 0: off.",
-    );
-    toggle(
-      "Read headings aloud",
-      "speakHeadings",
-      "Off: headings are labels. They show, but aren't highlighted, matched by voice or counted in the timing.",
-    );
-    slider("Countdown before Play", "countdown", 0, 5, 1, "Seconds of 3-2-1 on screen. 0: start at once. Not used in voice mode.");
-    slider("Smooth start", "smoothStart", 0, 3, 0.25, "Seconds to ease up to speed after Play. 0: full speed at once.");
-    toggle("Keep the screen awake", "keepAwake", "While playing or listening, the display doesn't dim or sleep.");
-    toggle(
-      "Stop at section break",
-      "stopAtSection",
-      "At a --- line, jump to the next section's start and pause. Press Space to go on.",
-    );
+    sub("Reading aids");
+    toggle("Dim text already read", "dimRead");
+    slider("Focus band", "focusBand", 0, 8, 1, "Lines kept bright from the eye line down; the rest is dimmed. 0: off.");
+    toggle("Bold word starts", "boldStarts", "The first letters of each word a little bolder.");
+    slider("Letter spacing", "letterSpacing", 0, 0.2, 0.01, "Extra space between letters, in em.");
+    slider("Word spacing", "wordSpacing", 0, 0.6, 0.02, "Extra space between words, in em.");
 
-    new Setting(containerEl).setName("Voice tracking").setHeading();
-    containerEl.createEl("p", {
-      text:
-        "A small local process listens to your microphone, recognises speech with " +
-        "Parakeet v3, and moves the prompter to the word you are saying. Needs uv " +
-        "and an Apple Silicon Mac. While on, Space pauses/resumes following.",
+    more("More text settings", () => {
+      new Setting(parent)
+        .setName("Font, as CSS")
+        .setDesc("Or type any font-family list here.")
+        .addText((t) => {
+          custom = t.inputEl;
+          t.setValue(s.fontFamily).onChange((v) => set({ fontFamily: v }));
+        });
     });
-    new Setting(containerEl)
-      .setName("Enable voice tracking")
-      .setDesc(`Status: ${this.plugin.voice?.state ?? "off"}`)
-      .addToggle((t) =>
-        t.setValue(s.voiceEnabled).onChange(async (v) => {
-          await this.plugin.updateSettings({ voiceEnabled: v }, false);
-          this.plugin.applyVoice();
-          window.setTimeout(() => this.display(), 1500);
-        }),
+
+    // ── 3. Scrolling: at a set speed, or following your voice ──────────────
+    section("Scrolling");
+    new Setting(parent)
+      .setName("The text moves")
+      .setDesc(
+        voice
+          ? `Following your voice. Status: ${this.plugin.voice?.state ?? "off"}. V in the prompter switches.`
+          : "At a set speed. V in the prompter switches.",
+      )
+      .addDropdown((d) =>
+        d
+          .addOptions({ speed: "At a set speed", voice: "Following your voice" })
+          .setValue(voice ? "voice" : "speed")
+          .onChange(async (v) => {
+            await this.plugin.updateSettings({ voiceEnabled: v === "voice" }, false);
+            this.plugin.applyVoice();
+            this.display();
+            window.setTimeout(() => this.display(), 1500);
+          }),
       );
+    slider(
+      "Speed",
+      "wpm",
+      40,
+      400,
+      5,
+      "Words per minute. Change live with + and −. Also sets the 'normally' times, in both modes.",
+    );
+    slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
+    only("speed", slider("Countdown before Play", "countdown", 0, 5, 1, "Seconds of 3-2-1 on screen. 0: start at once."));
+    only("speed", slider("Smooth start", "smoothStart", 0, 3, 0.25, "Seconds to ease up to speed after Play. 0: full speed at once."));
+    only(
+      "speed",
+      toggle("Stop at section break", "stopAtSection", "At a --- line, jump to the next section's start and pause. Space goes on."),
+    );
+    more("Speed per block type", () => {
+      slider("Heading speed ×", "headingSpeed", 0.25, 4, 0.05);
+      slider("Paragraph speed ×", "paragraphSpeed", 0.25, 4, 0.05);
+      slider("List item speed ×", "listSpeed", 0.25, 4, 0.05);
+      slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
+    });
+
+    sub(
+      "Following your voice",
+      "A small local process listens to your microphone, recognises speech with Parakeet v3 and moves the prompter to the word you are saying. Needs uv and an Apple Silicon Mac. Space pauses and resumes listening.",
+    );
     // Model download: a <progress> bar that updates while this tab is open.
-    const model = new Setting(containerEl).setName("Speech model");
+    const model = only("voice", new Setting(parent).setName("Speech model"));
     const bar = model.controlEl.createEl("progress", { cls: "sf-download" });
     bar.max = 1;
     const showModel = () => {
@@ -832,89 +846,232 @@ class SouffleurSettingTab extends PluginSettingTab {
     this.plugin.voiceListeners.add(showModel);
     this.unsubscribe = () => this.plugin.voiceListeners.delete(showModel);
 
-    const mic = new Setting(containerEl)
-      .setName("Microphone")
-      .setDesc("The list comes from the voice process, so it must be running.");
-    mic.addDropdown((d) => {
-      d.addOption("", "System default");
-      if (s.voiceDevice) d.addOption(s.voiceDevice, s.voiceDevice);
-      d.setValue(s.voiceDevice);
-      d.onChange(async (name) => {
-        await this.plugin.updateSettings({ voiceDevice: name }, false);
-        this.plugin.voice?.setDevice(name);
-      });
-      void this.plugin.voice?.devices().then((list) => {
-        for (const dev of list) {
-          if (dev.name !== s.voiceDevice) {
-            d.addOption(dev.name, dev.name + (dev.default ? " (default)" : ""));
-          }
-        }
-      });
+    only(
+      "voice",
+      new Setting(parent)
+        .setName("Microphone")
+        .setDesc("The list comes from the voice process, so it must be running.")
+        .addDropdown((d) => {
+          d.addOption("", "System default");
+          if (s.voiceDevice) d.addOption(s.voiceDevice, s.voiceDevice);
+          d.setValue(s.voiceDevice);
+          d.onChange(async (name) => {
+            await this.plugin.updateSettings({ voiceDevice: name }, false);
+            this.plugin.voice?.setDevice(name);
+          });
+          void this.plugin.voice?.devices().then((list) => {
+            for (const dev of list) {
+              if (dev.name !== s.voiceDevice) d.addOption(dev.name, dev.name + (dev.default ? " (default)" : ""));
+            }
+          });
+        }),
+    );
+    only(
+      "voice",
+      new Setting(parent)
+        .setName("Language")
+        .setDesc(
+          "Default language of your scripts: a code such as nl, or empty to let the model decide. A note's frontmatter `language:` overrides it. Used to read numbers (2026) the way you say them.",
+        )
+        .addText((t) =>
+          t
+            .setPlaceholder("auto")
+            .setValue(s.language)
+            .onChange((v) => void this.plugin.updateSettings({ language: v.trim() }, false)),
+        ),
+    );
+    only(
+      "voice",
+      new Setting(parent)
+        .setName("Reset voice matching")
+        .setDesc("If it stops following (for example, it picked the wrong language): forget what it heard and listen afresh. Also R in the prompter.")
+        .addButton((b) =>
+          b.setButtonText("Reset").onClick(() => {
+            this.plugin.resetVoice();
+            new Notice("Voice matching reset");
+          }),
+        ),
+    );
+
+    sub("While you speak");
+    only("voice", color("Heard words", "heardColor", "Words just recognised, before they dim."));
+    only("voice", slider("Keep heard words coloured", "heardHold", 0, 5, 0.25, "Seconds before a heard word dims. 0: dim at once."));
+    only(
+      "voice",
+      new Setting(parent)
+        .setName("Spotlight style")
+        .setDesc("How the next words are marked. Underline keeps the text's own colours.")
+        .addDropdown((d) =>
+          d
+            .addOptions({ underline: "Underline", colour: "Colour" })
+            .setValue(s.spotlightStyle)
+            .onChange((v) => set({ spotlightStyle: v as SpotlightStyle })),
+        ),
+    );
+    only("voice", color("Spotlight colour", "spotlightColor"));
+    only(
+      "voice",
+      slider("Spotlight words", "nextWords", 0, 15, 1, "The words right after the last one heard, where you'll be speaking. 0: off."),
+    );
+    only(
+      "voice",
+      slider("Pause helper", "pauseHint", 0, 10, 1, "When the microphone has been silent this many seconds, the spotlight words get a background. 0: off."),
+    );
+    only("voice", color("Pause helper colour", "nextColor"));
+
+    sub("After a take");
+    only(
+      "voice",
+      slider(
+        "Note the last runs",
+        "runsToKeep",
+        0,
+        9,
+        1,
+        "When you've read a section to the end, note its time as a %% run %% comment at the end of that section. Keeps this many, oldest first. 0: off.",
+      ),
+    );
+    only(
+      "voice",
+      toggle(
+        "Note what you said differently",
+        "noteSaid",
+        "After a read-through, what the speech model heard, with ==differences== and ~~left-out words~~ marked, in a %% said differently %% comment.",
+      ),
+    );
+
+    more("Voice process", () => {
+      new Setting(parent)
+        .setName("Start command")
+        .setDesc("Run when voice tracking turns on, stopped when it turns off. Empty: start `souffleur-voice serve` yourself, for example in a terminal to see its log.")
+        .addTextArea((t) => {
+          t.inputEl.rows = 3;
+          t.inputEl.style.width = "100%";
+          t.setPlaceholder(VOICE_COMMAND)
+            .setValue(s.voiceCommand)
+            .onChange((v) => void this.plugin.updateSettings({ voiceCommand: v }, false));
+        });
+      new Setting(parent)
+        .setName("Server address")
+        .addText((t) =>
+          t.setValue(s.voiceUrl).onChange((v) => void this.plugin.updateSettings({ voiceUrl: v }, false)),
+        );
+      only(
+        "voice",
+        new Setting(parent)
+          .setName("Restart voice tracking")
+          .setDesc("Apply a changed command or address.")
+          .addButton((b) =>
+            b.setButtonText("Restart").onClick(() => {
+              this.plugin.applyVoice();
+              window.setTimeout(() => this.display(), 1500);
+            }),
+          ),
+      );
     });
-    new Setting(containerEl)
-      .setName("Language")
-      .setDesc(
-        "Default language of your scripts: a code such as nl, or empty to let the " +
-          "model decide. A note's frontmatter `language:` overrides it. Used to " +
-          "read numbers (2026) the way you say them.",
-      )
-      .addText((t) =>
-        t
-          .setPlaceholder("auto")
-          .setValue(s.language)
-          .onChange((v) => void this.plugin.updateSettings({ language: v.trim() }, false)),
-      );
-    new Setting(containerEl)
-      .setName("Reset voice matching")
-      .setDesc(
-        "If it stops following (for example, it picked the wrong language): forget " +
-          "what it heard and start listening afresh. Also R in the prompter.",
-      )
-      .addButton((b) =>
-        b.setButtonText("Reset").onClick(() => {
-          this.plugin.resetVoice();
-          new Notice("Voice matching reset");
-        }),
-      );
-    new Setting(containerEl)
-      .setName("Start command")
-      .setDesc(
-        "Run when voice tracking turns on, stopped when it turns off. Empty: start " +
-          "`prompter-voice serve` yourself, for example in a terminal to see its log.",
-      )
-      .addTextArea((t) => {
-        t.inputEl.rows = 3;
-        t.inputEl.style.width = "100%";
-        t.setPlaceholder(VOICE_COMMAND)
-          .setValue(s.voiceCommand)
-          .onChange((v) => void this.plugin.updateSettings({ voiceCommand: v }, false));
-      });
-    new Setting(containerEl)
-      .setName("Server address")
-      .addText((t) =>
-        t
-          .setValue(s.voiceUrl)
-          .onChange((v) => void this.plugin.updateSettings({ voiceUrl: v }, false)),
-      );
-    new Setting(containerEl)
-      .setName("Restart voice tracking")
-      .setDesc("Apply a changed command or address.")
-      .addButton((b) =>
-        b.setButtonText("Restart").onClick(() => {
-          this.plugin.applyVoice();
-          window.setTimeout(() => this.display(), 1500);
-        }),
-      );
 
-    this.displayInputs(containerEl);
+    // ── 4. Script: how the note is read ────────────────────────────────────
+    section("Script");
+    toggle(
+      "Read headings aloud",
+      "speakHeadings",
+      "Off: headings are labels. They show, but aren't highlighted, matched by voice or counted in the timing.",
+    );
+    parent.createEl("p", {
+      cls: "sf-note-text setting-item-description",
+      text: "A note can override most settings for itself in its frontmatter: language: nl, and a souffleur: block with setting names, for example fontSize: 64.",
+    });
 
-    new Setting(containerEl).setName("Keys in the prompter").setHeading();
-    containerEl.createEl("p", {
+    // ── 5. Controls ────────────────────────────────────────────────────────
+    section("Controls");
+    parent.createEl("p", {
+      cls: "sf-note-text setting-item-description",
       text:
-        "Space play/pause · N next section · P restart section (twice: previous) · " +
+        "In the prompter: Space play/pause · N next section · P restart section (twice: previous) · " +
         "↑/↓ one line · PageUp/PageDown half screen · +/− speed · Home/End first/last section · " +
-        "H status bar · F fullscreen (Esc to leave) · V voice tracking on/off · " +
-        "R reset voice matching · D diagnostics.",
+        "H status bar · F fullscreen · Esc pause · V voice tracking on/off · R reset voice matching · D diagnostics.",
     });
+    this.displayInputs(parent);
+
+    // ── 6. Advanced: folded away ───────────────────────────────────────────
+    section("Advanced");
+    more("Lifecycle hooks", () => {
+      parent.createEl("p", {
+        cls: "sf-note-text setting-item-description",
+        text:
+          "Run a shell command at a moment, to connect other tools (OBS, a recorder, chapter markers). " +
+          "It gets SOUFFLEUR_EVENT, SOUFFLEUR_NOTE (the note's path on disk), SOUFFLEUR_SECTION (1, 2, …), " +
+          "SOUFFLEUR_SECTION_TITLE and SOUFFLEUR_MODE (speed or voice). Output goes to the developer " +
+          "console. Only set here, never from a note.",
+      });
+      for (const h of HOOKS) {
+        new Setting(parent)
+          .setName(`${h.name} hook`)
+          .setDesc(h.when)
+          .addText((t) =>
+            t
+              .setPlaceholder("command")
+              .setValue(s.hooks[h.id])
+              .onChange(
+                (v) => void this.plugin.updateSettings({ hooks: { ...this.plugin.settings.hooks, [h.id]: v } }, false),
+              ),
+          )
+          .addButton((b) =>
+            b.setButtonText("Test").onClick(() => {
+              if (!this.plugin.settings.hooks[h.id].trim()) return void new Notice("No command set.");
+              this.plugin.runHook(h.id, {
+                note: "/path/to/Videoscripts.md",
+                section: 0,
+                sectionTitle: "Test section",
+                mode: voice ? "voice" : "speed",
+                ...(h.id === "sectionDone" ? { seconds: 125, wpm: 138 } : {}),
+              });
+              new Notice(`Ran the ${h.name} hook. Output is in the developer console.`);
+            }),
+          );
+      }
+    });
+
+    this.filter();
+  }
+
+  /**
+   * Show only rows whose name or description contains the search text.
+   * Sections without a match hide; folds with a match open; explanations and
+   * sub-headings hide while searching.
+   */
+  private filter(): void {
+    const q = this.query.trim().toLowerCase();
+    const root = this.containerEl;
+    for (const sec of Array.from(root.querySelectorAll<HTMLElement>(".sf-section"))) {
+      let any = false;
+      const rows = sec.querySelectorAll<HTMLElement>(".setting-item:not(.setting-item-heading)");
+      for (const row of Array.from(rows)) {
+        const name = row.querySelector(".setting-item-name")?.textContent ?? "";
+        const desc = row.querySelector(".setting-item-description")?.textContent ?? "";
+        // Rows in a fold also match on its name ("Speed per block type").
+        const fold = row.closest("details")?.querySelector("summary")?.textContent ?? "";
+        const hit = !q || `${name} ${desc} ${fold}`.toLowerCase().includes(q);
+        row.toggleClass("sf-hidden", !hit);
+        any ||= hit;
+      }
+      sec.toggleClass("sf-hidden", !any);
+      for (const el of Array.from(sec.querySelectorAll<HTMLElement>(".sf-subhead, .sf-note-text"))) {
+        el.toggleClass("sf-hidden", !!q);
+      }
+      for (const fold of Array.from(sec.querySelectorAll<HTMLDetailsElement>("details.sf-more"))) {
+        const hasHit = !!fold.querySelector(".setting-item:not(.sf-hidden)");
+        fold.toggleClass("sf-hidden", !!q && !hasHit);
+        // Open folds with a match; close the ones the search opened when it's
+        // cleared (a fold you opened yourself stays open).
+        if (q && hasHit && !fold.open) {
+          fold.open = true;
+          fold.dataset.bySearch = "1";
+        } else if (!q && fold.dataset.bySearch) {
+          fold.open = false;
+          delete fold.dataset.bySearch;
+        }
+      }
+    }
   }
 }

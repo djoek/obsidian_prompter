@@ -21,11 +21,13 @@ export interface PrompterCallbacks {
   onToggleVoice?: () => void;
   /** R pressed in the prompter. */
   onResetVoice?: () => void;
+  /** A section started (scrolled or jumped into, a retake, or by voice). */
+  onSection?: (section: number) => void;
   /** Play/pause changed: in voice mode, pause means "stop listening". */
   onListening?: (on: boolean) => void;
   /** Voice mode: section `section` was read to its end, in `seconds`
    * (first heard word to last). */
-  onSectionDone?: (section: number, seconds: number) => void;
+  onSectionDone?: (section: number, seconds: number, words: number) => void;
 }
 
 const JUMP_MS = 450;
@@ -101,6 +103,8 @@ export class Prompter {
   // Time spent in the current section (counts up while playing/listening,
   // restarts at every section) and how long each section normally takes.
   private timerSection = -1;
+  /** A jump in progress: the section it goes to (its events wait for it). */
+  private jumpTo: number | null = null;
   private elapsed = 0;
   private shownSecond = -1;
   private lengths: number[] = [];
@@ -115,7 +119,8 @@ export class Prompter {
   /** The word each section starts at. */
   private sectionStarts: number[] = [];
   /** Voice mode: the current read-through of a section. */
-  private run = { section: -1, start: 0, done: false };
+  /** `word`: the first word heard in this read-through. */
+  private run = { section: -1, start: 0, word: 0, done: false };
 
   /** Voice mode: when the last position arrived (pause helper). */
   private lastHeardAt = 0;
@@ -640,13 +645,27 @@ export class Prompter {
   private trackRun(i: number, at: number): void {
     const section = this.sectionOfWord(i);
     if (section !== this.run.section || i < this.marked - 3) {
-      this.run = { section, start: at, done: false };
+      this.run = { section, start: at, word: i, done: false };
     }
     const last = (this.sectionStarts[section + 1] ?? this.wordEls.length) - 1;
     if (!this.run.done && i >= last - 2 && at - this.run.start > 1000) {
       this.run.done = true;
-      this.callbacks.onSectionDone?.(section, (at - this.run.start) / 1000);
+      // Words from the first one heard to here: if the start was missed,
+      // the speed isn't overstated.
+      this.callbacks.onSectionDone?.(section, (at - this.run.start) / 1000, i - this.run.word + 1);
     }
+  }
+
+  sectionTitle(n: number): string {
+    return this.script.sections[n]?.title ?? "";
+  }
+
+  get section(): number {
+    return this.currentSection();
+  }
+
+  get voiceMode(): boolean {
+    return this.voice;
   }
 
   /** Word numbers [from, to) of section `n`. */
@@ -704,8 +723,14 @@ export class Prompter {
    * section (by scrolling, voice or a jump) starts again at 0:00. */
   private updateTimer(dt: number): void {
     const n = this.currentSection();
+    if (this.jumpTo !== null) {
+      if (n !== this.jumpTo || this.tween) return; // still sliding there
+      this.jumpTo = null;
+      this.timerSection = -1; // arrived: a new start, even in the same section
+    }
     if (n !== this.timerSection) {
       this.timerSection = n;
+      this.callbacks.onSection?.(n);
       this.elapsed = 0;
       this.shownSecond = -1;
     } else if (this.playing && !this.countdownUntil) {
@@ -752,6 +777,7 @@ export class Prompter {
 
   play(): void {
     if (this.pos >= this.total && !this.voice) return;
+    const was = this.playing;
     this.playing = true;
     this.dwellUntil = 0;
     const now = this.win.performance.now();
@@ -764,7 +790,7 @@ export class Prompter {
     this.playStart = now;
     this.syncWake();
     this.updateHud();
-    this.callbacks.onListening?.(true);
+    if (!was) this.callbacks.onListening?.(true); // only on a real change (hooks)
   }
 
   get isPlaying(): boolean {
@@ -772,12 +798,13 @@ export class Prompter {
   }
 
   pause(): void {
+    const was = this.playing;
     this.playing = false;
     this.countdownUntil = 0;
     this.countdownEl.hidden = true;
     this.syncWake();
     this.updateHud();
-    this.callbacks.onListening?.(false);
+    if (was) this.callbacks.onListening?.(false); // only on a real change (hooks)
   }
 
   toggle(): void {
@@ -793,7 +820,7 @@ export class Prompter {
     this.current = i;
     const word = this.blockWord[i] ?? 0;
     this.clearHeard();
-    this.run = { section: -1, start: 0, done: false }; // a jump: no run in progress
+    this.run = { section: -1, start: 0, word: 0, done: false }; // a jump: no run in progress
     this.highlight(word - 1);
     this.voiceWord = -1;
     this.callbacks.onSeek?.(word);
@@ -828,7 +855,9 @@ export class Prompter {
     const sec = this.script.sections[n];
     if (!sec) return;
     this.goToBlock(this.startBlock(n));
-    this.timerSection = -1; // a retake of the same section starts at 0:00 too
+    // Count the section (and restart its timer, also for a retake) when the
+    // jump arrives, not for the sections it slides past.
+    this.jumpTo = n;
   }
 
   nextSection(): void {

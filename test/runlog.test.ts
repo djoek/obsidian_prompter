@@ -28,6 +28,12 @@ const runsIn = (text: string) => text.match(/%% run: [^%]*%%/g) ?? [];
 describe("run notes", () => {
   test("format", () => {
     expect(runComment(127.4, at(14, 3))).toBe("%% run: 2:07 · 2026-11-28 14:03 %%");
+    // 280 words in 2:00 = 140 words per minute
+    expect(runComment(120, at(14, 3), 280)).toBe("%% run: 2:00 · 140 wpm · 2026-11-28 14:03 %%");
+  });
+
+  test("the speed goes into the note", () => {
+    expect(addRun(NOTE, 0, 30, at(14, 3), 1, 66)).toContain("%% run: 0:30 · 132 wpm · 2026-11-28 14:03 %%");
   });
 
   test("first run: at the end of the section, before its ---", () => {

@@ -2,8 +2,10 @@
 // written as a comment at the end of that section. The last `keep` runs stay,
 // oldest first, newest last:
 //
-//   %% run: 2:15 · 2026-11-28 14:03 %%
-//   %% run: 2:07 · 2026-11-28 14:20 %%
+//   %% run: 2:15 · 128 wpm · 2026-11-28 14:03 %%
+//   %% run: 2:07 · 136 wpm · 2026-11-28 14:20 %%
+//
+// wpm: the words from the first one heard to the last, over that time.
 //
 // They're Obsidian comments, so the prompter never shows them and they add no
 // words. Lines in the earlier "%% last run: … %%" form are recognised too.
@@ -21,8 +23,9 @@ function stamp(date: Date): string {
   );
 }
 
-export function runComment(seconds: number, date: Date): string {
-  return `%% run: ${formatDuration(seconds)} · ${stamp(date)} %%`;
+export function runComment(seconds: number, date: Date, words = 0): string {
+  const wpm = words > 0 && seconds > 0 ? ` · ${Math.round((words / seconds) * 60)} wpm` : "";
+  return `%% run: ${formatDuration(seconds)}${wpm} · ${stamp(date)} %%`;
 }
 
 /**
@@ -31,7 +34,14 @@ export function runComment(seconds: number, date: Date): string {
  * section (before its `---`, after the last text), where any existing ones
  * were. Returns the text unchanged if the section doesn't exist or `keep` < 1.
  */
-export function addRun(text: string, section: number, seconds: number, date: Date, keep: number): string {
+export function addRun(
+  text: string,
+  section: number,
+  seconds: number,
+  date: Date,
+  keep: number,
+  words = 0,
+): string {
   const script = parseScript(text);
   const sec = script.sections[section];
   if (!sec || keep < 1) return text;
@@ -47,7 +57,7 @@ export function addRun(text: string, section: number, seconds: number, date: Dat
   const found: number[] = [];
   for (let i = start; i < end; i++) if (RUN_LINE.test(lines[i] ?? "")) found.push(i);
   const runs = found.map((i) => (lines[i] ?? "").replace(/^%% last run:/, "%% run:"));
-  runs.push(runComment(seconds, date));
+  runs.push(runComment(seconds, date, words));
   const kept = runs.slice(-keep);
 
   if (found.length) {
