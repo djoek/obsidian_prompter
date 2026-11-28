@@ -56,6 +56,10 @@ export class Prompter {
   private eye: HTMLElement;
   private hud: HTMLElement;
   private toastEl: HTMLElement;
+  /** Status light, top right as you read it: like a camera's tally light. */
+  private lightEl: HTMLElement;
+  /** Voice tracking is on, but the voice process isn't ready yet. */
+  private voiceWaiting = false;
 
   private script: Script = { blocks: [], sections: [] };
   private els: HTMLElement[] = [];
@@ -141,6 +145,8 @@ export class Prompter {
     this.eye = this.el("div", "sf-eyeline", this.rotor);
     this.hud = this.el("footer", "sf-hud", this.rotor);
     this.toastEl = this.el("output", "sf-toast", this.rotor);
+    this.lightEl = this.el("div", "sf-light", this.rotor);
+    this.lightEl.setAttribute("role", "status");
 
     this.stage.addEventListener("wheel", this.onWheel, { passive: false });
     this.resizeObserver = new ResizeObserver(() => this.layout());
@@ -342,6 +348,7 @@ export class Prompter {
     st.setProperty("--sf-eye-pos", `${s.eyeLine}%`);
     this.eye.hidden = !s.showEyeLine;
     this.hud.hidden = !s.showHud;
+    this.lightEl.hidden = !s.showLight;
     this.stage.toggleAttribute("data-dim-read", s.dimRead);
     this.stage.dataset.spotlight = s.spotlightStyle;
     st.setProperty("--sf-unspoken", s.unspokenColor);
@@ -1029,7 +1036,24 @@ export class Prompter {
     for (const n of this.notes) n.el.toggleAttribute("data-read", n.block < this.current);
   }
 
+  /** Voice tracking is switched on but not ready: the light shows amber. */
+  setVoiceWaiting(waiting: boolean): void {
+    this.voiceWaiting = waiting;
+    this.updateHud();
+  }
+
+  private updateLight(): void {
+    const state = this.voiceWaiting ? "waiting" : this.playing ? "on" : "paused";
+    if (this.lightEl.dataset.state === state) return;
+    this.lightEl.dataset.state = state;
+    this.lightEl.setAttribute(
+      "aria-label",
+      { on: "Going", paused: "Paused", waiting: "Voice tracking not ready yet" }[state],
+    );
+  }
+
   private updateHud(): void {
+    this.updateLight();
     const n = this.currentSection();
     const total = this.script.sections.length;
     const title = this.script.sections[n]?.title ?? "";

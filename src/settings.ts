@@ -31,6 +31,7 @@ export interface PrompterSettings {
   showEyeLine: boolean;
   dimRead: boolean;
   showHud: boolean;
+  showLight: boolean; // status light: red = going, ring = paused, amber = voice not ready
   /** Status bar: time in this section, and how long it normally takes. */
   showSectionTimer: boolean;
   nextWords: number; // voice: spotlight size, the words right after the last heard
@@ -102,6 +103,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   showEyeLine: true,
   dimRead: true,
   showHud: true,
+  showLight: true,
   showSectionTimer: true,
   nextWords: 7,
   heardHold: 1.5,

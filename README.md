@@ -121,6 +121,19 @@ a notice. Voice-process settings (command, address, microphone) are
 machine-wide and can't be set per note. With a `wpm` in the note, + and −
 change the speed for this session only.
 
+## Status light
+
+A dot in the top right corner (as you read it, also when mirrored) shows the
+state at a glance, like a camera's tally light:
+
+- **red:** going: auto-scrolling, or listening in voice mode
+- **grey ring:** paused
+- **amber:** voice tracking is on but not ready yet (starting, loading the
+  model, or not connected)
+
+It never blinks, so it doesn't pull your eye off the text. *Reading aids →
+Status light* switches it off.
+
 ## How the note is read
 
 - `---` on its own line starts a **new section** (one video). Frontmatter at the

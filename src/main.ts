@@ -304,6 +304,7 @@ export default class SouffleurPlugin extends Plugin {
   /** Give a prompter the current voice state. */
   syncVoice(view: PrompterView): void {
     view.prompter?.setVoice(this.voice?.ready ?? false);
+    view.prompter?.setVoiceWaiting(this.voice !== null && !this.voice.ready);
     view.prompter?.setVoiceInfo(this.voiceLabel());
   }
 
@@ -675,6 +676,11 @@ class SouffleurSettingTab extends PluginSettingTab {
     toggle("Show eye-line markers", "showEyeLine");
     toggle("Dim text already read", "dimRead");
     toggle("Show status bar", "showHud", "Toggle in the prompter with H.");
+    toggle(
+      "Status light",
+      "showLight",
+      "A dot top right, like a camera's tally light: red while going (playing or listening), a grey ring when paused, amber while voice tracking isn't ready yet.",
+    );
     toggle(
       "Show section timer",
       "showSectionTimer",

@@ -141,7 +141,8 @@
 .sf-toast {
   position: absolute;
   top: 1em;
-  right: 1em;
+  left: 50%;
+  translate: -50% 0; /* top centre: the top right is the status light's */
   padding: 0.3em 0.8em;
   font: 700 24px/1.4 system-ui, sans-serif;
   color: var(--sf-bg);
@@ -301,3 +302,24 @@ progress.sf-download {
 @media (prefers-reduced-motion: no-preference) {
   .sf-stage[data-voice] .sf-content [data-next] { transition: background 0.6s, color 0.25s; }
 }
+
+/* Status light, top right as the reader sees it (inside the rotor, so it
+   follows mirroring and rotation). Steady, never blinking: movement in the
+   corner of the eye pulls the gaze off the text. */
+.sf-light {
+  --d: max(28px, calc(var(--sf-size) * 0.5));
+  position: absolute;
+  z-index: 3; /* above the countdown and the focus band, which dim the rest */
+  top: calc(var(--d) * 0.8);
+  right: calc(var(--d) * 0.8);
+  width: var(--d);
+  height: var(--d);
+  box-sizing: border-box;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+.sf-light[data-state="on"] { background: #ff2d2d; box-shadow: 0 0 calc(var(--d) * 0.6) #ff2d2d80; }
+.sf-light[data-state="paused"] { border: calc(var(--d) * 0.14) solid #8a8a8a; }
+.sf-light[data-state="waiting"] { background: #ffb020; }
+[hidden].sf-light { display: none; }
