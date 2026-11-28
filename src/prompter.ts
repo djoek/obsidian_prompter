@@ -649,6 +649,11 @@ export class Prompter {
     }
   }
 
+  /** Word numbers [from, to) of section `n`. */
+  sectionRange(n: number): [number, number] {
+    return [this.sectionStarts[n] ?? 0, this.sectionStarts[n + 1] ?? this.wordEls.length];
+  }
+
   private sectionOfWord(i: number): number {
     let n = 0;
     while (n + 1 < this.sectionStarts.length && (this.sectionStarts[n + 1] ?? Infinity) <= i) n++;

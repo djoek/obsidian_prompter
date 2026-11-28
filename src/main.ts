@@ -759,6 +759,11 @@ class SouffleurSettingTab extends PluginSettingTab {
     slider("List item speed ×", "listSpeed", 0.25, 4, 0.05);
     slider("Quote speed ×", "quoteSpeed", 0.25, 4, 0.05);
     slider("Pause at heading", "headingPause", 0, 5, 0.25, "Seconds the heading holds on the eye line.");
+    toggle(
+      "Note what you said differently",
+      "noteSaid",
+      "Voice tracking: when you've read a section to the end, list where your words differed from the script (paraphrases, typos you corrected) in a %% said differently %% comment. Misheard words show up too, so treat it as hints.",
+    );
     slider(
       "Note the last runs",
       "runsToKeep",

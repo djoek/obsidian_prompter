@@ -65,3 +65,76 @@ export function addRun(text: string, section: number, seconds: number, date: Dat
   lines.splice(at, 0, ...insert);
   return lines.join(eol);
 }
+
+// ── "Said differently" ────────────────────────────────────────────────────
+//
+//   %% said differently (2026-11-28 14:03):
+//   heard: "Ik heb een manager maandenlang horen klagen over hoe het proces niet goed liep. …"
+//   - "mank" → "niet goed"
+//   - added "echt"
+//   - skipped "voor 2026."
+//   %%
+//
+// One block per section, after its run lines; replaced on each run, removed
+// when a run matched the script.
+
+export interface SaidChange {
+  script: string;
+  said: string;
+}
+
+/** From the voice process: what it heard for the section, and the differences. */
+export interface Said {
+  heard: string;
+  changes: SaidChange[];
+}
+
+const SAID_START = /^%% said differently\b.*$/;
+
+export function saidBlock({ heard, changes }: Said, date: Date): string[] {
+  const line = (c: SaidChange) =>
+    !c.script ? `- added "${c.said}"` : !c.said ? `- skipped "${c.script}"` : `- "${c.script}" → "${c.said}"`;
+  // "%%" inside the heard text would end the comment early.
+  const clean = heard.replace(/%%/g, "%");
+  return [`%% said differently (${stamp(date)}):`, `heard: "${clean}"`, ...changes.map(line), "%%"];
+}
+
+/** Section `section`'s block set to this run's; removed if nothing differed. */
+export function setSaid(text: string, section: number, said: Said, date: Date): string {
+  const { changes } = said;
+  const script = parseScript(text);
+  const sec = script.sections[section];
+  if (!sec) return text;
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const start = script.blocks[sec.firstBlock]?.line ?? 0;
+  const separator = script.blocks.find((b) => b.type === "separator" && b.section === section + 1);
+  let end = separator ? separator.line : lines.length;
+
+  // Remove an earlier block (from its first line to the closing %%).
+  for (let i = start; i < end; i++) {
+    if (!SAID_START.test(lines[i] ?? "")) continue;
+    let j = i + 1;
+    while (j < end && (lines[j] ?? "").trim() !== "%%") j++;
+    const count = Math.min(j, end - 1) - i + 1;
+    lines.splice(i, count);
+    end -= count;
+    break;
+  }
+  if (!changes.length) return lines.join(eol);
+
+  // After the last run line if there is one, else after the section's text.
+  let at = end;
+  for (let i = end - 1; i >= start; i--) {
+    if (RUN_LINE.test(lines[i] ?? "")) {
+      at = i + 1;
+      break;
+    }
+  }
+  if (at === end) while (at > start && (lines[at - 1] ?? "").trim() === "") at--;
+  const block = saidBlock(said, date);
+  const insert = (lines[at - 1] ?? "").trim() !== "" && !RUN_LINE.test(lines[at - 1] ?? "") ? ["", ...block] : block;
+  if (separator && (lines[at] ?? "").trim() !== "") insert.push("");
+  lines.splice(at, 0, ...insert);
+  return lines.join(eol);
+}

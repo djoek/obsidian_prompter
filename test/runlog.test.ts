@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseScript } from "../src/parser";
-import { addRun, runComment } from "../src/runlog";
+import { addRun, runComment, setSaid } from "../src/runlog";
 
 const at = (h: number, m: number) => new Date(2026, 10, 28, h, m);
 const NOTE = `---
@@ -85,5 +85,55 @@ describe("run notes", () => {
     const out = addRun(NOTE.replace(/\n/g, "\r\n"), 0, 5, at(14, 0), 1);
     expect(out.includes("\r\n%% run:")).toBe(true);
     expect(/[^\r]\n/.test(out)).toBe(false);
+  });
+});
+
+describe("said differently", () => {
+  const CHANGES = {
+    heard: "Dat liep niet goed, echt",
+    changes: [
+      { script: "mank", said: "niet goed" },
+      { script: "", said: "echt" },
+      { script: "voor 2026.", said: "" },
+    ],
+  };
+
+  test("block after the run lines, before the ---", () => {
+    const withRun = addRun(NOTE, 1, 65, at(14, 3), 1);
+    const out = setSaid(withRun, 1, CHANGES, at(14, 3));
+    expect(out).toContain(
+      [
+        "%% run: 1:05 · 2026-11-28 14:03 %%",
+        "%% said differently (2026-11-28 14:03):",
+        'heard: "Dat liep niet goed, echt"',
+        '- "mank" → "niet goed"',
+        '- added "echt"',
+        '- skipped "voor 2026."',
+        "%%",
+        "",
+        "---",
+      ].join("\n"),
+    );
+  });
+
+  test("replaced on the next run; removed when you read it as written", () => {
+    let text = setSaid(NOTE, 0, CHANGES, at(14, 0));
+    text = setSaid(text, 0, { heard: "b", changes: [{ script: "a", said: "b" }] }, at(15, 0));
+    expect(text.match(/said differently/g)).toHaveLength(1);
+    expect(text).toContain('- "a" → "b"');
+    expect(text).not.toContain("niet goed");
+    text = setSaid(text, 0, { heard: "as written", changes: [] }, at(16, 0));
+    expect(text).not.toContain("said differently");
+  });
+
+  test("a %% in what was heard can't end the comment early", () => {
+    const out = setSaid(NOTE, 0, { heard: "50%% korting", changes: [{ script: "x", said: "y" }] }, at(14, 0));
+    expect(out).toContain('heard: "50% korting"');
+  });
+
+  test("the prompter shows the same words", () => {
+    const out = setSaid(addRun(NOTE, 2, 9, at(14, 0), 2), 2, CHANGES, at(14, 0));
+    const words = (t: string) => parseScript(t).blocks.map((b) => b.words);
+    expect(words(out)).toEqual(words(NOTE));
   });
 });

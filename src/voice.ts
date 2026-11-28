@@ -1,6 +1,8 @@
 // Client for the voice process (voice/ in this repo). See voice/src/prompter_voice/server.py
 // for the message protocol.
 
+import type { Said } from "./runlog";
+
 export interface VoiceDevice {
   name: string;
   default: boolean;
@@ -32,6 +34,7 @@ export class VoiceClient {
   private retry = 0;
   private closed = false;
   private devicesWaiting: ((d: VoiceDevice[]) => void)[] = [];
+  private saidWaiting = new Map<number, (s: Said | null) => void>();
 
   constructor(
     private url: string,
@@ -95,6 +98,13 @@ export class VoiceClient {
       case "level":
         this.events.onLevel?.(Number(msg.rms));
         break;
+      case "said": {
+        const resolve = this.saidWaiting.get(Number(msg.section));
+        this.saidWaiting.delete(Number(msg.section));
+        const changes = msg.changes as Said["changes"] | null;
+        resolve?.(changes ? { heard: String(msg.heard ?? ""), changes } : null);
+        break;
+      }
       case "devices": {
         const list = (msg.devices as VoiceDevice[]) ?? [];
         this.devicesWaiting.splice(0).forEach((resolve) => resolve(list));
@@ -111,6 +121,22 @@ export class VoiceClient {
    * `sections`: the word each section starts at. */
   sendScript(words: string[], word: number, language: string | null, sections: number[]): void {
     this.send({ type: "script", words, word, language, sections });
+  }
+
+  /** How what you said differs from words `from`..`to` of section `section`;
+   * null if it can't tell (not connected, or the section wasn't found). */
+  said(section: number, from: number, to: number): Promise<Said | null> {
+    if (this.ws?.readyState !== WebSocket.OPEN) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this.saidWaiting.set(section, resolve);
+      this.send({ type: "said", section, from, to });
+      window.setTimeout(() => {
+        if (this.saidWaiting.get(section) === resolve) {
+          this.saidWaiting.delete(section);
+          resolve(null);
+        }
+      }, 5000);
+    });
   }
 
   /** Paused (false): the voice process stops recognising until resumed. */

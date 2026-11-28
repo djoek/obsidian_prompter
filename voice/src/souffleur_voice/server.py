@@ -13,6 +13,8 @@ Plugin → server
                                                   afresh (Parakeet re-detects the language)
   {"type": "listen", "on": bool}                  pause (Space) stops recognition; resuming
                                                   starts it afresh
+  {"type": "said", "section": n, "from": a, "to": b}
+                                                  how what you said differs from words a..b
 
 Server → plugin
   {"type": "status", "state": "downloading"|"loading"|"ready"|"error", "device": ...,
@@ -21,6 +23,9 @@ Server → plugin
   {"type": "position", "word": n}                 you are saying word n
   {"type": "heard", "text": "..."}                the last words the model heard
   {"type": "level", "rms": 0..1}                  microphone level, for a meter
+  {"type": "said", "section": n, "heard": "..." | null,
+   "changes": [{"script": ..., "said": ...}] | null}
+                                                  null: the section wasn't found in what was heard
 """
 
 import asyncio
@@ -42,6 +47,7 @@ from souffleur_voice.asr import Recognizer
 if TYPE_CHECKING:
     from souffleur_voice.audio import Microphone
 from souffleur_voice.normalize import normalize_text
+from souffleur_voice.said import section_said
 
 log = logging.getLogger("souffleur_voice")
 TICK = 0.25  # seconds between recognition steps
@@ -268,6 +274,16 @@ class VoiceServer:
                 if on != self.listening:
                     log.info("Listening %s", "resumed" if on else "paused")
                 self.listening = on
+            case "said" if self.aligner and self.recognizer:
+                a, b = int(msg.get("from", 0)), int(msg.get("to", 0))
+                transcript = await self.run_in_worker(self.recognizer.said)
+                found = section_said(list(self.aligner.words[a:b]), transcript, self.aligner.lang)
+                await self.send(
+                    type="said",
+                    section=msg.get("section"),
+                    heard=None if found is None else found.heard,
+                    changes=None if found is None else [asdict(c) for c in found.changes],
+                )
             case "reset":
                 # Your place in the script stays; only what was heard is dropped.
                 log.info("Reset requested: restarting recognition")

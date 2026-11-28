@@ -30,6 +30,9 @@ class FakeRecognizer:
     def set_language(self, language: str | None) -> None:
         self.languages.append(language)
 
+    def said(self) -> str:
+        return "Hallo welkom bij deze clip vandaag vertel ik je waarom"
+
     def feed(self, audio: np.ndarray) -> list[str]:
         self.n += 1
         return WORDS[: self.n][-10:]
@@ -156,3 +159,19 @@ def test_paused_does_no_recognition(monkeypatch):
     rec, paused, sent = asyncio.run(scenario())
     assert paused == []  # no level, no words while paused
     assert rec.n > 0 and any(m["type"] == "position" for m in sent)
+
+
+def test_said_reports_differences():
+    async def scenario() -> list[dict]:
+        rec = FakeRecognizer()
+        server = VoiceServer(lambda model_id: rec, model="fake", device=None)
+        server.recognizer = rec
+        client = FakeClient()
+        server.client = client  # ty: ignore[invalid-assignment]
+        await server.on_message({"type": "script", "words": WORDS})
+        await server.on_message({"type": "said", "section": 0, "from": 0, "to": len(WORDS)})
+        return [m for m in client.sent if m["type"] == "said"]
+
+    (reply,) = asyncio.run(scenario())
+    assert reply["changes"] == [{"script": "video", "said": "clip"}]
+    assert reply["heard"] == "Hallo welkom bij deze clip vandaag vertel ik je waarom"

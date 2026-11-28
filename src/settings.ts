@@ -52,6 +52,7 @@ export interface PrompterSettings {
   speakHeadings: boolean; // headings are read aloud (else they're labels)
   stopAtSection: boolean;
   runsToKeep: number; // voice: how many run times to note per section; 0 = none
+  noteSaid: boolean; // voice: note where what you said differs from the script
   countdown: number; // seconds of 3-2-1 before Play; 0 = none
   smoothStart: number; // seconds to ease up to speed after Play; 0 = instant
   keepAwake: boolean; // keep the screen on while playing or listening
@@ -122,6 +123,7 @@ export const DEFAULT_SETTINGS: PrompterSettings = {
   speakHeadings: false,
   stopAtSection: true,
   runsToKeep: 1,
+  noteSaid: false,
   countdown: 3,
   smoothStart: 1,
   keepAwake: true,

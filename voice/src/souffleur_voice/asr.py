@@ -13,6 +13,7 @@ SAMPLE_RATE = 16_000
 log = logging.getLogger("souffleur_voice")
 
 PARAKEET = "mlx-community/parakeet-tdt-0.6b-v3"
+SAID_LIMIT = 40_000  # characters of transcript kept for "said differently"
 
 
 def resample(audio: np.ndarray, rate: int) -> np.ndarray:
@@ -41,6 +42,11 @@ class Recognizer(Protocol):
 
     def set_language(self, language: str | None) -> None:
         """ISO 639-1 code, or None to let the model decide."""
+        ...
+
+    def said(self) -> str:
+        """Everything recognised this session (the last ~40,000 characters),
+        across resets, as text."""
         ...
 
 
@@ -76,10 +82,20 @@ class ParakeetRecognizer:
         # `portable` avoids a Metal-only attention kernel; for testing off-Mac.
         self.portable = portable
         self._stream = None
+        # Transcript: earlier streams, plus this stream's finalized text. The
+        # stream's own token list is trimmed (memory), so text is copied out
+        # as tokens get finalized; `_seen` counts the ones already copied.
+        self._history = ""
+        self._final = ""
+        self._seen = 0
         self.reset()
 
     def reset(self) -> None:
         if self._stream is not None:
+            # Keep what this stream heard, drafts included, before it goes.
+            self._history = self.said() + " "
+            self._final = ""
+            self._seen = 0
             self._stream.__exit__(None, None, None)
         self._stream = self.model.transcribe_stream(
             context_size=self.context, keep_original_attention=self.portable
@@ -91,12 +107,19 @@ class ParakeetRecognizer:
         s = self._stream
         assert s is not None
         s.add_audio(mx.array(audio.astype(np.float32)))
+        self._final += "".join(t.text for t in s.finalized_tokens[self._seen :])
+        self._final = self._final[-SAID_LIMIT:]
         # Finalized tokens grow forever over an hour of recording; we only ever
         # need the tail, so trim them (the decoder keeps its own state).
         if len(s.finalized_tokens) > 200:
             del s.finalized_tokens[:-100]
+        self._seen = len(s.finalized_tokens)
         text = "".join(t.text for t in s.finalized_tokens + s.draft_tokens)
         return text.split()[-self.keep_words :]
+
+    def said(self) -> str:
+        draft = "".join(t.text for t in self._stream.draft_tokens) if self._stream else ""
+        return (self._history + self._final + draft)[-SAID_LIMIT:]
 
     def set_language(self, language: str | None) -> None:
         # Parakeet v3 has no language input: it guesses from the audio.
