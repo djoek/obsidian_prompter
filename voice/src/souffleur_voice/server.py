@@ -23,7 +23,7 @@ Server → plugin
   {"type": "position", "word": n}                 you are saying word n
   {"type": "heard", "text": "..."}                the last words the model heard
   {"type": "level", "rms": 0..1}                  microphone level, for a meter
-  {"type": "said", "section": n, "heard": "..." | null,
+  {"type": "said", "section": n, "heard": "..." | null, "marked": "..." | null,
    "changes": [{"script": ..., "said": ...}] | null}
                                                   null: the section wasn't found in what was heard
 """
@@ -282,6 +282,7 @@ class VoiceServer:
                     type="said",
                     section=msg.get("section"),
                     heard=None if found is None else found.heard,
+                    marked=None if found is None else found.marked,
                     changes=None if found is None else [asdict(c) for c in found.changes],
                 )
             case "reset":

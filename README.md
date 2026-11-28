@@ -184,22 +184,19 @@ section (0–9, default 1), oldest first; the oldest drops off. Being comments,
 they never show in the prompter.
 
 **Said differently** (off by default, *Pacing → Note what you said
-differently*): after a read-through, the places where your words differed from
-the script are listed under the run times, with what the speech model heard
-for that section, ready for editing before take 2:
+differently*): after a read-through, what the speech model heard for that
+section is written under the run times, with the differences marked, ready
+for editing before take 2:
 
 ```markdown
 %% said differently (2026-11-28 14:03):
-heard: "Ik heb een manager maandenlang horen klagen over hoe het proces niet goed liep. …"
-- "mank" → "niet goed"
-- "schattig" → "schatting"
-- added "echt"
+Ik heb een manager maandenlang horen klagen over hoe het proces ==niet goed== liep. Een ruwe ==schatting== werd genoemd en het moest opgelost zijn ~~voor 2026.~~
 %%
 ```
 
+`==…==` is what you said differently (or added), `~~…~~` what you left out.
 The next run replaces it; a run that matched the script removes it. The speech
-model sometimes mishears a word, which shows up here too: treat the list as
-hints, not a verdict.
+model sometimes mishears a word, which is marked too.
 
 **While writing:** the command **Show section lengths** opens a sidebar with
 every section of the note you're editing, its word count and its normal length,

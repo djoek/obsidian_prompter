@@ -24,6 +24,9 @@ from souffleur_voice.normalize import normalize
 class Said:
     heard: str  # what the speech model heard for the section
     changes: list["Change"]
+    # The heard text with the differences marked: ==said differently== and
+    # ~~script words left out~~.
+    marked: str = ""
 
 
 @dataclass
@@ -86,8 +89,14 @@ def section_said(script_words: list[str], transcript: str, lang: str = "nl") -> 
     part, part_orig = heard[start:end], heard_orig[start:end]
 
     changes: list[Change] = []
+    marked: list[str] = []
     for tag, i1, i2, j1, j2 in SequenceMatcher(None, script, part, autojunk=False).get_opcodes():
+        heard_words = " ".join(part_orig[j1:j2])
         if tag == "equal" or "".join(script[i1:i2]) == "".join(part[j1:j2]):
+            if heard_words:
+                marked.append(heard_words)
             continue
-        changes.append(Change(" ".join(script_orig[i1:i2]), " ".join(part_orig[j1:j2])))
-    return Said(" ".join(part_orig), changes)
+        written = " ".join(script_orig[i1:i2])
+        changes.append(Change(written, heard_words))
+        marked.append(f"=={heard_words}==" if heard_words else f"~~{written}~~")
+    return Said(" ".join(part_orig), changes, " ".join(marked))

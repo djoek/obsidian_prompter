@@ -91,6 +91,7 @@ describe("run notes", () => {
 describe("said differently", () => {
   const CHANGES = {
     heard: "Dat liep niet goed, echt",
+    marked: "Dat liep ==niet goed==, ==echt== ~~voor 2026.~~",
     changes: [
       { script: "mank", said: "niet goed" },
       { script: "", said: "echt" },
@@ -105,10 +106,7 @@ describe("said differently", () => {
       [
         "%% run: 1:05 · 2026-11-28 14:03 %%",
         "%% said differently (2026-11-28 14:03):",
-        'heard: "Dat liep niet goed, echt"',
-        '- "mank" → "niet goed"',
-        '- added "echt"',
-        '- skipped "voor 2026."',
+        "Dat liep ==niet goed==, ==echt== ~~voor 2026.~~",
         "%%",
         "",
         "---",
@@ -118,17 +116,17 @@ describe("said differently", () => {
 
   test("replaced on the next run; removed when you read it as written", () => {
     let text = setSaid(NOTE, 0, CHANGES, at(14, 0));
-    text = setSaid(text, 0, { heard: "b", changes: [{ script: "a", said: "b" }] }, at(15, 0));
+    text = setSaid(text, 0, { heard: "b", marked: "==b==", changes: [{ script: "a", said: "b" }] }, at(15, 0));
     expect(text.match(/said differently/g)).toHaveLength(1);
-    expect(text).toContain('- "a" → "b"');
+    expect(text).toContain("\n==b==\n");
     expect(text).not.toContain("niet goed");
-    text = setSaid(text, 0, { heard: "as written", changes: [] }, at(16, 0));
+    text = setSaid(text, 0, { heard: "as written", marked: "as written", changes: [] }, at(16, 0));
     expect(text).not.toContain("said differently");
   });
 
   test("a %% in what was heard can't end the comment early", () => {
-    const out = setSaid(NOTE, 0, { heard: "50%% korting", changes: [{ script: "x", said: "y" }] }, at(14, 0));
-    expect(out).toContain('heard: "50% korting"');
+    const out = setSaid(NOTE, 0, { heard: "", marked: "==50%% korting==", changes: [{ script: "x", said: "y" }] }, at(14, 0));
+    expect(out).toContain("\n==50% korting==\n");
   });
 
   test("the prompter shows the same words", () => {

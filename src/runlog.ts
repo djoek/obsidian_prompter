@@ -69,11 +69,12 @@ export function addRun(text: string, section: number, seconds: number, date: Dat
 // ── "Said differently" ────────────────────────────────────────────────────
 //
 //   %% said differently (2026-11-28 14:03):
-//   heard: "Ik heb een manager maandenlang horen klagen over hoe het proces niet goed liep. …"
-//   - "mank" → "niet goed"
-//   - added "echt"
-//   - skipped "voor 2026."
+//   Ik heb een manager … over hoe het proces ==niet goed== liep. Een ruwe
+//   ==schatting== werd genoemd en het moest opgelost zijn ~~voor 2026.~~
 //   %%
+//
+// The text is what the speech model heard; ==marked== where you said
+// something else than the script, ~~struck~~ where you left words out.
 //
 // One block per section, after its run lines; replaced on each run, removed
 // when a run matched the script.
@@ -87,16 +88,16 @@ export interface SaidChange {
 export interface Said {
   heard: string;
   changes: SaidChange[];
+  /** The heard text with ==differences== and ~~skipped words~~ marked. */
+  marked: string;
 }
 
 const SAID_START = /^%% said differently\b.*$/;
 
-export function saidBlock({ heard, changes }: Said, date: Date): string[] {
-  const line = (c: SaidChange) =>
-    !c.script ? `- added "${c.said}"` : !c.said ? `- skipped "${c.script}"` : `- "${c.script}" → "${c.said}"`;
-  // "%%" inside the heard text would end the comment early.
-  const clean = heard.replace(/%%/g, "%");
-  return [`%% said differently (${stamp(date)}):`, `heard: "${clean}"`, ...changes.map(line), "%%"];
+export function saidBlock({ heard, marked }: Said, date: Date): string[] {
+  // "%%" inside the text would end the comment early.
+  const text = (marked || heard).replace(/%%/g, "%");
+  return [`%% said differently (${stamp(date)}):`, text, "%%"];
 }
 
 /** Section `section`'s block set to this run's; removed if nothing differed. */

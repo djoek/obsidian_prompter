@@ -102,7 +102,11 @@ export class VoiceClient {
         const resolve = this.saidWaiting.get(Number(msg.section));
         this.saidWaiting.delete(Number(msg.section));
         const changes = msg.changes as Said["changes"] | null;
-        resolve?.(changes ? { heard: String(msg.heard ?? ""), changes } : null);
+        resolve?.(
+          changes
+            ? { heard: String(msg.heard ?? ""), marked: String(msg.marked ?? ""), changes }
+            : null,
+        );
         break;
       }
       case "devices": {

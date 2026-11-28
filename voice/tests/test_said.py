@@ -85,3 +85,17 @@ def test_heard_text_is_the_section_only():
     assert found is not None
     assert found.heard.startswith("Ik heb een manager")
     assert found.heard.endswith("voor 2026.")
+
+
+def test_marked_text_shows_differences_in_place():
+    said = (
+        EARLIER
+        + " Ik heb een manager maandenlang horen klagen over hoe het proces niet goed liep. "
+    )
+    said += "Een ruwe schatting werd genoemd en het moest opgelost zijn"
+    found = section_said(SCRIPT, said)
+    assert found is not None
+    assert found.marked == (
+        "Ik heb een manager maandenlang horen klagen over hoe het proces ==niet goed== liep. "
+        "Een ruwe ==schatting== werd genoemd en het moest opgelost zijn ~~voor 2026.~~"
+    )
